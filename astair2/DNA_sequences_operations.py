@@ -13,8 +13,4 @@ def reverse_complementary(sequence):
 
 def reverse(sequence):
     """Takes an input DNA string and gives its reverse."""
-    reverse_string = list(sequence)
-    reverse_string.reverse()
-    final_string = "".join(reverse_string)
-    return final_string
-
+    return sequence[::-1]

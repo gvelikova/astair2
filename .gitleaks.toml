@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic DNA sequence in unit test"
+paths = [
+  '''tests/test_Phred_calculation.py''',
+]
+regexes = [
+  '''ACCAGAAAAATGACGCCTGA''',
+]

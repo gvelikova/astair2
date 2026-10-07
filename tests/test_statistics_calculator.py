@@ -1,36 +1,70 @@
-import unittest
-from collections import defaultdict
+from collections import Counter
 
-from astair2 import caller as mod_caller
-
-
-class StatisticsCalculationTest(unittest.TestCase):
-    """"Tests whether mod_caller.statistics_calculator function will count the modified and unmodified reads per cytosine context
-    when it is given an ordered list input containing chromosome, start, end, modification ratio, number of
-    modified reads, number of unmodified reads, modified base, reference base, specific context, general context,
-     SNV or not."""
-
-    def test_modified_position_correct(self):
-        """Tests whether a CHH context will be discovered and its modified and unmodified bases counted."""
-        mean_mod = {'CHH':0, 'CAT':0}
-        mean_unmod = {'CHH':0, 'CAT':0}
-        context_sample_counts = defaultdict(int)
-        data_mod = ['some_reference_genome', 1, 2, 0.8, 8, 2, 'T', 'C', 'CAT', 'CHH', 'No']
-        mod_caller.statistics_calculator(mean_mod, mean_unmod, data_mod, None, context_sample_counts)
-        self.assertEqual(mean_mod, {'CHH': 8, 'CAT': 8})
-        self.assertEqual(mean_unmod, {'CHH': 2, 'CAT': 2})
-
-    def test_modified_position_incorrect(self):
-        """Tests whether a SNV in CHH context will not be counted as a modification."""
-        mean_mod = {'CHH':0, 'CAT':0}
-        mean_unmod = {'CHH':0, 'CAT':0}
-        context_sample_counts = defaultdict(int)
-        data_mod = ['some_reference_genome', 1, 2, 0.8, 8, 2, 'T', 'C', 'CAT', 'CHH', 'homozyguous']
-        mod_caller.statistics_calculator(mean_mod, mean_unmod, data_mod, None, context_sample_counts)
-        self.assertEqual(mean_mod, {'CHH': 0, 'CAT': 0})
-        self.assertEqual(mean_unmod, {'CHH': 0, 'CAT': 0})
+from astair2.caller import add_to_statistics, statistics_rows
 
 
+def record(snv, specific="CAT", context="CHH", modified=8, unmodified=2):
+    return (
+        "some_reference_genome",
+        1,
+        2,
+        0.8,
+        modified,
+        unmodified,
+        "C",
+        "T",
+        specific,
+        context,
+        snv,
+        10,
+    )
 
-if __name__ == '__main__':
-    unittest.main()
+
+def test_modified_position_is_counted():
+    statistics = (Counter(), Counter(), Counter())
+    add_to_statistics(statistics, record("No"), None)
+    covered, modified, unmodified = statistics
+    assert covered == {"CHH": 1, "CAT": 1}
+    assert modified == {"CHH": 8, "CAT": 8}
+    assert unmodified == {"CHH": 2, "CAT": 2}
+
+
+def test_snv_is_covered_but_not_counted_as_modification():
+    statistics = (Counter(), Counter(), Counter())
+    add_to_statistics(statistics, record("homozygous"), None)
+    covered, modified, unmodified = statistics
+    assert covered == {"CHH": 1, "CAT": 1}
+    assert not modified and not unmodified
+
+
+def test_user_context_counts_towards_its_own_row():
+    statistics = (Counter(), Counter(), Counter())
+    add_to_statistics(
+        statistics,
+        record(
+            "No",
+            specific="CAG",
+            context="user defined context",
+            modified=3,
+            unmodified=1,
+        ),
+        "CAG",
+    )
+    assert statistics[1] == {"CAG": 3, "user defined context": 3}
+
+
+def test_statistics_rows():
+    statistics = (Counter(), Counter(), Counter())
+    add_to_statistics(
+        statistics,
+        record("No", specific="CGA", context="CpG", modified=3, unmodified=1),
+        None,
+    )
+    rows = list(
+        statistics_rows(
+            statistics, Counter({"CG": 5, "CGb": 5, "CGA": 4}), "CpG", None, "*"
+        )
+    )
+    assert rows[1] == ("CpG", "*", 75.0, 10, 1, 3, 1)
+    assert rows[2] == ("*", "CGA", 75.0, 4, 1, 3, 1)
+    assert rows[3] == ("*", "CGC", "*", 0, 0, 0, 0)

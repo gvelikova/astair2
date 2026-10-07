@@ -1,25 +1,27 @@
-#-*- coding: utf-8 -*-
+import logging
+import warnings
 
 import click
-import logging
 
 import astair2
+import astair2.aligner as aligner
+import astair2.caller as caller
+import astair2.filter as filter
+import astair2.finder as finder
+import astair2.idbiaser as idbiaser
 import astair2.mbias as mbias
 import astair2.phred as phred
-import astair2.caller as caller
-import astair2.finder as finder
-import astair2.filter as filter 
-import astair2.aligner as aligner
-import astair2.summary as summary
-import astair2.idbiaser as idbiaser
 import astair2.simulator as simulator
-
+import astair2.summary as summary
 
 # TODO make this config properly configurable using command line options
 # For example, we could use a global option -v to change the log level to
 # DEBUG and produce verbose output for all commands
 logging.basicConfig(level=logging.WARNING)
-logs = logging.getLogger(__name__)
+warnings.simplefilter(action="ignore", category=UserWarning)
+warnings.simplefilter(action="ignore", category=FutureWarning)
+warnings.simplefilter(action="ignore", category=RuntimeWarning)
+
 
 @click.group()
 def cli():
@@ -27,6 +29,7 @@ def cli():
     asTair2 (tools for processing cytosine modification sequencing data)
     """
     pass
+
 
 cli.epilog = """
 __________________________________About__________________________________
@@ -37,7 +40,7 @@ LICENSE.txt for more details.
 
                                                          Version: __version__
 """
-cli.epilog = cli.epilog.replace('__version__', astair2.__version__)
+cli.epilog = cli.epilog.replace("__version__", astair2.__version__)
 
 
 cli.add_command(caller.call)
@@ -51,5 +54,5 @@ cli.add_command(summary.summarise)
 cli.add_command(idbiaser.idbias)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

@@ -1,63 +1,202 @@
-import pdb
-import csv
-import sys
-import unittest
-import subprocess
-from os import path
+"""Runs `astair2 align` with stub bwa/bwameth.py/samtools executables that record their arguments."""
 
-from unittest.mock import patch, mock_open
+import os
+import stat
+from pathlib import Path
+
+import pytest
+from click.testing import CliRunner
+
+from astair2.cli import cli
+
+DATA = Path(__file__).resolve().parent / "test_data"
+
+STUB = """#!/bin/sh
+printf "%s %s\\n" "$(basename "$0")" "$*" >> "{log}"
+case "$*" in
+  *" index "*|"index "*) touch "$2.bwt" "$2.bwameth.c2t" 2>/dev/null; touch "$2.bai" ;;
+  *) [ -p /dev/stdin ] && cat > /dev/null; echo "{name} output" ;;
+esac
+"""
 
 
-from astair2.aligner import run_alignment
+@pytest.fixture
+def tools(tmp_path):
+    log = tmp_path / "calls.log"
+    paths = {}
+    for name in ("bwa", "bwameth.py", "samtools"):
+        path = tmp_path / name
+        path.write_text(STUB.format(log=log, name=name))
+        path.chmod(path.stat().st_mode | stat.S_IEXEC)
+        paths[name] = str(path)
+    return paths, log
 
-current = path.abspath(path.dirname(__file__))
+
+@pytest.fixture
+def reference(tmp_path):
+    copy = tmp_path / "lambda.fa"
+    copy.write_text((DATA / "lambda_phage.fa").read_text())
+    return str(copy)
 
 
-class AlignFastaOutputTest(unittest.TestCase):
-    """Tests whether the aligner function internals function as expected."""
-    
-    
-    def test_mock_taps_pair_end(self):
-        """Tests whether the aligner function will run with pair-end TAPS reads."""
-        samtools = mock_open(read_data = current + '/test_data/samtools').return_value
-        bwa = mock_open(read_data = current + '/test_data/bwa').return_value
-        bwa = 'bwa_'
-        samtools = 'samtools_'
-        run_alignment(current + '/test_data/small_lambda_synth_taps_lambda_1.fq.gz', current + '/test_data/small_lambda_synth_taps_lambda_2.fq.gz', current + '/test_data/lambda_phage.fa', bwa, samtools, current + '/test_data/', 'mCtoT', 'BAM', 1, False, 1, 19, 100, 100, 1.5, 20, 500, 0.5, 0, 50, False, False, 1, 4, [6,6], [1,1], [5,5], 17, 'null', False, '', '', '', '', '', '', '', 30, [5,200], '', '', '', '', '', False, None, False, False, '10M')
-        self.assertEqual(bwa, 'bwa_')
-        self.assertEqual(samtools, 'samtools_')
-        remove = 'rm {}'.format(current + '/test_data/small_lambda_synth_taps_lambda_mCtoT.bam')
-        subprocess.Popen(remove, shell=True)
-        
-        
-    def test_mock_taps_single_end(self):
-        """Tests whether the aligner function will run with single-end TAPS reads."""
-        package = "builtins"
-        samtools = mock_open(read_data = current + '/test_data/samtools').return_value
-        bwa = mock_open(read_data = current + '/test_data/bwa').return_value
-        bwa = 'bwa_'
-        samtools = 'samtools_'
-        run_alignment(current + '/test_data/small_lambda_real_taps_lambda_1.fq.gz', '', current + '/test_data/lambda_phage.fa', bwa, samtools, current + '/test_data/', 'mCtoT', 'BAM', 1, False, 1, 19, 100, 100, 1.5, 20, 500, 0.5, 0, 50, False, False, 1, 4, [6,6], [1,1], [5,5], 17, 'null', True, '', '', '', '', '', '', '', 30, [5,200], '', '', '', '', '', False, None, False, False, '10M')
-        self.assertEqual(bwa, 'bwa_')
-        self.assertEqual(samtools, 'samtools_')
-        remove = 'rm {}'.format(current + '/test_data/small_lambda_real_taps_lambda_mCtoT.bam')
-        subprocess.Popen(remove, shell=True)
-        
-        
-    def test_mock_wgbs_pair_end(self):
-        """Tests whether the aligner function will run with pair-end WGBS reads."""
-        package = "builtins"
-        samtools = mock_open(read_data = current + '/test_data/samtools').return_value
-        bwa = mock_open(read_data = current + '/test_data/bwameth.py').return_value
-        bwa = 'bwameth.py_'
-        samtools = 'samtools_'
-        run_alignment(current + '/test_data/small_lambda_synth_wgbs_lambda_1.fq.gz', current + '/test_data/small_lambda_synth_wgbs_lambda_2.fq.gz', current + '/test_data/lambda_phage.fa', bwa, samtools, current + '/test_data/', 'CtoT', 'BAM', 1, False, 1, 19, 100, 100, 1.5, 20, 500, 0.5, 0, 50, False, False, 1, 4, [6,6], [1,1], [5,5], 17, 'null', False, '', '', '', '', '', '', '', 30, [5,200], '', '', '', '', '', False, None, False, False, '10M')
-        self.assertEqual(bwa, 'bwameth.py_')
-        self.assertEqual(samtools, 'samtools_')
-        remove = 'rm {}'.format(current + '/test_data/small_lambda_synth_wgbs_lambda_CtoT.bam')
-        subprocess.Popen(remove, shell=True)
-        
-        
+def calls(log):
+    return [line.split() for line in log.read_text().splitlines()]
 
-if __name__ == '__main__':
-    unittest.main()
+
+def call(log, *prefix):
+    """The one recorded call starting with prefix; pipeline stages start concurrently, so order is not fixed."""
+    matching = [c for c in calls(log) if c[: len(prefix)] == list(prefix)]
+    assert len(matching) == 1, calls(log)
+    return matching[0]
+
+
+def test_taps_pair_end(tools, reference, tmp_path):
+    paths, log = tools
+    out = tmp_path / "out"
+    out.mkdir()
+    result = CliRunner().invoke(
+        cli,
+        [
+            "align",
+            "-1",
+            str(DATA / "small_real_taps_lambda_1.fq.gz"),
+            "-2",
+            str(DATA / "small_real_taps_lambda_2.fq.gz"),
+            "-f",
+            reference,
+            "-bp",
+            paths["bwa"],
+            "-sp",
+            paths["samtools"],
+            "-d",
+            str(out),
+            "-rg",
+            r"@RG\tID:a\tSM:b",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert call(log, "bwa", "index") == ["bwa", "index", reference]
+    bwa = call(log, "bwa", "mem")
+    assert bwa[:2] == ["bwa", "mem"] and bwa[-3:] == [
+        reference,
+        str(DATA / "small_real_taps_lambda_1.fq.gz"),
+        str(DATA / "small_real_taps_lambda_2.fq.gz"),
+    ]
+    assert bwa[bwa.index("-R") + 1] == r"@RG\tID:a\tSM:b"
+    assert call(log, "samtools", "view") == [
+        "samtools",
+        "view",
+        "-hb",
+        "-T",
+        reference,
+        "-q",
+        "1",
+        "-F",
+        "4",
+        "-O",
+        "BAM",
+    ]
+    assert call(log, "samtools", "sort") == [
+        "samtools",
+        "sort",
+        "-m",
+        "768M",
+        "-@",
+        "1",
+        "-O",
+        "BAM",
+    ]
+    output = out / "small_real_taps_lambda_mCtoT.bam"
+    # indexing runs after the whole pipeline has finished
+    assert calls(log)[-1] == ["samtools", "index", str(output)]
+    assert output.read_text() == "samtools output\n"
+
+
+def test_wgbs_single_end_keeps_unmapped(tools, reference, tmp_path):
+    paths, log = tools
+    out = tmp_path / "out"
+    out.mkdir()
+    fastq = str(DATA / "small_real_taps_lambda_mCtoT_SE.fq.gz")
+    result = CliRunner().invoke(
+        cli,
+        [
+            "align",
+            "-1",
+            fastq,
+            "-se",
+            "-m",
+            "CtoT",
+            "-u",
+            "-O",
+            "CRAM",
+            "-f",
+            reference,
+            "-bp",
+            paths["bwameth.py"],
+            "-sp",
+            paths["samtools"],
+            "-d",
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert call(log, "bwameth.py", "-t") == [
+        "bwameth.py",
+        "-t",
+        "1",
+        "--reference",
+        reference,
+        fastq,
+    ]
+    assert call(log, "samtools", "view") == [
+        "samtools",
+        "view",
+        "-hC",
+        "-T",
+        reference,
+        "-q",
+        "0",
+        "-O",
+        "CRAM",
+    ]
+    assert call(log, "samtools", "sort") == [
+        "samtools",
+        "sort",
+        "-T",
+        os.path.join(str(out), "temp"),
+        "-@",
+        "1",
+        "-O",
+        "CRAM",
+    ]
+    assert (out / "small_real_taps_lambda_mCtoT_SE_CtoT.cram").exists()
+
+
+def test_failed_aligner_is_not_indexed(tools, reference, tmp_path):
+    paths, log = tools
+    Path(paths["bwa"]).write_text(
+        '#!/bin/sh\necho "bwa $*" >> "{}"\nexit 3\n'.format(log)
+    )
+    (Path(reference + ".bwt")).touch()
+    out = tmp_path / "out"
+    out.mkdir()
+    result = CliRunner().invoke(
+        cli,
+        [
+            "align",
+            "-1",
+            str(DATA / "small_real_taps_lambda_1.fq.gz"),
+            "-2",
+            str(DATA / "small_real_taps_lambda_2.fq.gz"),
+            "-f",
+            reference,
+            "-bp",
+            paths["bwa"],
+            "-sp",
+            paths["samtools"],
+            "-d",
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0
+    assert not any(call[:2] == ["samtools", "index"] for call in calls(log))

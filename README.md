@@ -151,6 +151,23 @@ pip install ".[plot,test]"
 pytest
 ```
 
+# Local quality checks
+
+```bash
+pip install ".[dev]"
+black --check astair2 tests
+mypy astair2
+/tmp/gitleaks protect --staged -v
+```
+
+To enforce these automatically before each commit:
+
+```bash
+pip install ".[dev]"
+pre-commit install
+pre-commit run --all-files
+```
+
 # Citation
 
 If you use asTair2 in your work, please cite:

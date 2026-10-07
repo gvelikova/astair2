@@ -1,0 +1,21 @@
+repos:
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        entry: /media/projects/astair2/dev/bin/python3 -m black astair2 tests
+        language: system
+        pass_filenames: false
+
+      - id: mypy
+        name: mypy
+        entry: /media/projects/astair2/dev/bin/python3 -m mypy astair2 --ignore-missing-imports
+        language: system
+        pass_filenames: false
+
+      - id: gitleaks-staged
+        name: gitleaks staged scan
+        entry: /tmp/gitleaks protect --staged -v --config .gitleaks.toml
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

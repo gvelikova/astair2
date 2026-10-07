@@ -1,91 +1,133 @@
-import pdb
 import unittest
-from collections import defaultdict
 
-from astair2 import caller as mod_caller
+import pytest
+
 from astair2 import context_search as context
 
 
 class SequenceSearchOutputTest(unittest.TestCase):
-    """Tests whether a particular expected cytosine context would be discovered on the top strand.
-    The function mod_caller.sequence_context_set_creation expects desired contexts (CHH, CHG, CpG, all,
-    user-defined) as input strings and returns a dictionary containing all possible context
-    realisations as a list with key values the desired contexts. Then context.ahocorasick_search
-    uses the  dictionary of contexts, the key values, the fasta DNA string, chromosome
-    name and fills in a data_context dictionary. The data_context dictionary contains as
-    key values tuples of (chromomes, start, end) of the desired contexts discovered in
-    the provided fasta file, and as dictionary items the general and specific context
-    discovered at that position. The test battery should have two failures."""
+    """Tests whether the expected cytosine contexts are found on the top and bottom strands.
+    context.find_cytosine_contexts returns {(chromosome, start, end): (specific context, context,
+    strand base)} for the motif keys it is given, and user-defined contexts are reported at their
+    first cytosine."""
 
-    def test_ahocorasick_search_CHH_top(self):
+    def test_context_search_CHH_top(self):
         """Tests whether the expected CHH positions will be discovered on the top DNA strand."""
         data_context = {}
-        context_total_counts = defaultdict(int)
-        contexts, all_keys = mod_caller.sequence_context_set_creation('CHH', None)
-        context.ahocorasick_search('CHH', contexts, 'AACTTCATCACT', 'test_string', None, data_context, context_total_counts, None, None)
-        self.assertEqual(data_context, {('test_string', 2, 3): ('CTT', 'CHH', 'C'),
-                                        ('test_string', 5, 6): ('CAT', 'CHH', 'C'),
-                                        ('test_string', 8, 9): ('CAC', 'CHH', 'C')})
+        for key in ["CHH"]:
+            data_context.update(
+                context.find_cytosine_contexts(
+                    "AACTTCATCACT", "test_string", (key,), None
+                )[0]
+            )
+        self.assertEqual(
+            data_context,
+            {
+                ("test_string", 2, 3): ("CTT", "CHH", "C"),
+                ("test_string", 5, 6): ("CAT", "CHH", "C"),
+                ("test_string", 8, 9): ("CAC", "CHH", "C"),
+            },
+        )
 
-    def test_ahocorasick_search_CHH_bottom(self):
+    def test_context_search_CHH_bottom(self):
         """Tests whether the expected CHH positions will be discovered on the bottom DNA strand."""
         data_context = {}
-        context_total_counts = defaultdict(int)
-        contexts, all_keys = mod_caller.sequence_context_set_creation('CHH', None)
-        context.ahocorasick_search('CHHb', contexts, 'AAGGCTTTGccc', 'test_string', None, data_context, context_total_counts, None, None)
-        self.assertEqual(data_context, {('test_string', 2, 3): ('CTT', 'CHH', 'G'),
-                                        ('test_string', 3, 4): ('CCT', 'CHH', 'G'),
-                                        ('test_string', 8, 9): ('CAA', 'CHH', 'G')})
+        for key in ["CHHb"]:
+            data_context.update(
+                context.find_cytosine_contexts(
+                    "AAGGCTTTGccc", "test_string", (key,), None
+                )[0]
+            )
+        self.assertEqual(
+            data_context,
+            {
+                ("test_string", 2, 3): ("CTT", "CHH", "G"),
+                ("test_string", 3, 4): ("CCT", "CHH", "G"),
+                ("test_string", 8, 9): ("CAA", "CHH", "G"),
+            },
+        )
 
-    def test_ahocorasick_search_CHG_top(self):
+    def test_context_search_CHG_top(self):
         """Tests whether the expected CHG positions will be discovered on the top DNA strand."""
         data_context = {}
-        context_total_counts = defaultdict(int)
-        contexts, all_keys = mod_caller.sequence_context_set_creation('CHG', None)
-        context.ahocorasick_search('CHG', contexts, 'AACTTCAGCACT', 'test_string', None, data_context, context_total_counts, None, None)
-        self.assertEqual(data_context, {('test_string', 5, 6): ('CAG', 'CHG', 'C')})
+        for key in ["CHG"]:
+            data_context.update(
+                context.find_cytosine_contexts(
+                    "AACTTCAGCACT", "test_string", (key,), None
+                )[0]
+            )
+        self.assertEqual(data_context, {("test_string", 5, 6): ("CAG", "CHG", "C")})
 
-    def test_ahocorasick_search_CHG_bottom(self):
+    def test_context_search_CHG_bottom(self):
         """Tests whether the expected CHG positions will be discovered on the bottom DNA strand."""
         data_context = {}
-        context_total_counts = defaultdict(int)
-        contexts, all_keys = mod_caller.sequence_context_set_creation('CHG', None)
-        context.ahocorasick_search('CHGb', contexts, 'AACTTCAGCACT', 'test_string', None, data_context, context_total_counts, None, None)
-        self.assertEqual(data_context, {('test_string', 7, 8): ('CTG', 'CHG', 'G')})
+        for key in ["CHGb"]:
+            data_context.update(
+                context.find_cytosine_contexts(
+                    "AACTTCAGCACT", "test_string", (key,), None
+                )[0]
+            )
+        self.assertEqual(data_context, {("test_string", 7, 8): ("CTG", "CHG", "G")})
 
-    def test_ahocorasick_search_CpG(self):
+    def test_context_search_CpG(self):
         """Tests whether the expected CpG positions will be discovered."""
         data_context = {}
-        context_total_counts = defaultdict(int)
-        contexts, all_keys = mod_caller.sequence_context_set_creation('CpG', None)
-        context.ahocorasick_search('CG', contexts, 'AAGCGTTTGccc', 'test_string', None, data_context, context_total_counts, None, None)
-        context.ahocorasick_search('CGb', contexts, 'AAGCGTTTGccc', 'test_string', None, data_context, context_total_counts, None, None)
-        self.assertEqual(data_context, {('test_string', 3, 4): ('CGT', 'CpG', 'C'), ('test_string', 4, 5): ('CGC', 'CpG', 'G')})
-        
-    def test_ahocorasick_search_user_short(self):
+        for key in ["CG", "CGb"]:
+            data_context.update(
+                context.find_cytosine_contexts(
+                    "AAGCGTTTGccc", "test_string", (key,), None
+                )[0]
+            )
+        self.assertEqual(
+            data_context,
+            {
+                ("test_string", 3, 4): ("CGT", "CpG", "C"),
+                ("test_string", 4, 5): ("CGC", "CpG", "G"),
+            },
+        )
+
+    def test_context_search_user_short(self):
         """Tests whether the expected short context positions will be discovered."""
         data_context = {}
-        context_total_counts = defaultdict(int)
-        contexts, all_keys = mod_caller.sequence_context_set_creation('CpG', 'AAcTG')
-        context.ahocorasick_search('user', contexts, 'AAcTGCGTTTGcccTTGAC', 'test_string', 'AAcTG', data_context, context_total_counts, None, None)
-        self.assertEqual(data_context, {('test_string', 2, 3): ('AAcTG', 'user defined context', 'C'), ('test_string', 16, 17): ('AAcTG', 'user defined context', 'G')})
-        
-    def test_ahocorasick_search_user_long(self):
+        for key in ["user"]:
+            data_context.update(
+                context.find_cytosine_contexts(
+                    "AAcTGCGTTTGcccTTGAC", "test_string", (key,), "AAcTG"
+                )[0]
+            )
+        self.assertEqual(
+            data_context,
+            {
+                ("test_string", 2, 3): ("AAcTG", "user defined context", "C"),
+                ("test_string", 16, 17): ("AAcTG", "user defined context", "G"),
+            },
+        )
+
+    def test_context_search_user_long(self):
         """Tests whether the expected long context positions will be discovered."""
         data_context = {}
-        context_total_counts = defaultdict(int)
-        contexts, all_keys = mod_caller.sequence_context_set_creation('CpG', 'AATTTCCCGAcgt')
-        context.ahocorasick_search('user', contexts, 'AATTTCCCGAcgtAAcTGTTaaagggcTgcACGTTTGcccTTGAC', 'test_string', 'AATTTCCCGAcgt', data_context, context_total_counts, None, None)
-        self.assertEqual(data_context, {('test_string', 5, 6): ('AATTTCCCGAcgt', 'user defined context', 'C'), ('test_string', 28, 29): ('AATTTCCCGAcgt', 'user defined context', 'G')})
-        
-    def test_ahocorasick_search_user_none(self):
-        """Tests whether no positions will be returned if cytosine is 
-        not found in the user-provided sequence."""
-        data_context = {}
-        context_total_counts = defaultdict(int)
-        contexts, all_keys = mod_caller.sequence_context_set_creation('CpG', 'AATTT')
-        context.ahocorasick_search('user', contexts, 'AAcTGCGTTTGcccTTGAC', 'test_string', 'AATTT', data_context, context_total_counts, None, None)
-        self.assertEqual(data_context, {})
+        for key in ["user"]:
+            data_context.update(
+                context.find_cytosine_contexts(
+                    "AATTTCCCGAcgtAAcTGTTaaagggcTgcACGTTTGcccTTGAC",
+                    "test_string",
+                    (key,),
+                    "AATTTCCCGAcgt",
+                )[0]
+            )
+        self.assertEqual(
+            data_context,
+            {
+                ("test_string", 5, 6): ("AATTTCCCGAcgt", "user defined context", "C"),
+                ("test_string", 28, 29): ("AATTTCCCGAcgt", "user defined context", "G"),
+            },
+        )
 
-if __name__ == '__main__':
+    def test_user_context_without_cytosine_is_rejected(self):
+        """A user-provided context must contain a cytosine."""
+        with pytest.raises(ValueError):
+            context.context_keys("CpG", "AATTT")
+
+
+if __name__ == "__main__":
     unittest.main()

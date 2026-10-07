@@ -12,7 +12,11 @@ class AsTaiRunTest(unittest.TestCase):
 
     def test_run(self):
         """"""
-        self.assertEqual(inspect.cleandoc(run.cli.help), 'asTair2 (tools for processing cytosine modification sequencing data)')
-        
-if __name__ == '__main__':
+        self.assertEqual(
+            inspect.cleandoc(run.cli.help),
+            "asTair2 (tools for processing cytosine modification sequencing data)",
+        )
+
+
+if __name__ == "__main__":
     unittest.main()

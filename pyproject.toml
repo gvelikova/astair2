@@ -27,13 +27,17 @@ classifiers = [
 dependencies = [
     "click>=8.1",
     "pysam>=0.22",
-    "pyahocorasick>=2.1",
     "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.9"]
 test = ["pytest>=8"]
+dev = [
+    "black>=24.8",
+    "mypy>=1.11",
+    "pre-commit>=3.8",
+]
 
 [project.scripts]
 astair2 = "astair2.cli:cli"
@@ -46,3 +50,14 @@ version = { attr = "astair2.version.__version__" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ["astair.egg-info/"]

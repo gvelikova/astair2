@@ -1,29 +1,21 @@
 def non_zero_division(x, y, sign):
-    """Ensures safe division of x by y, assuming that the result will be zero if y is 0."""
-    if y == 0 and x!=0:
-        return int(0)
-    elif y == 0 and x==0:
-        return sign
-    else:
-        return x / y
+    """x / y, or 0 if only y is 0, or sign if both are 0."""
+    if y == 0:
+        return 0 if x != 0 else sign
+    return x / y
 
 
 def non_zero_division_NA(x, y):
-    """Ensures safe division of x by y, assuming that the result will be zero if x is 0, and NA if y is zero."""
+    """x / y, or 'NA' if y is 0, or 0 if x is 0."""
     if y == 0:
         return "NA"
-    elif x == 0:
-        return int(0)
-    else:
-        return x / y
+    if x == 0:
+        return 0
+    return x / y
 
 
 def safe_rounder(data, precision, multiple):
-    """Ensures no attempts at rounding non-numeric data are done."""
+    """Rounds numbers, as a percentage if multiple is true, and leaves strings untouched."""
     if isinstance(data, str):
         return data
-    else:
-        if multiple == True:
-            return round(data*100, precision)
-        else:
-            return round(data, precision)
+    return round(data * 100 if multiple else data, precision)

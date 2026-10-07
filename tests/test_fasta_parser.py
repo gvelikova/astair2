@@ -1,54 +1,78 @@
-import sys
-import unittest
+import gzip
+
+import pysam
+import pytest
 
 from astair2 import simple_fasta_parser as sfp
 
-from unittest.mock import patch, mock_open
-    
-class FastaParserTest(unittest.TestCase):
-    """Tests whether fasta-like strings can be split meaningfully into DNA strings and chromosome names (keys).
-    In case \r\n line terminators are discovered together with having more DNA strings than keys, a naive
-    concatenation procedure of the multiple short DNA strings is performed."""
-    
-    def test_parsing_fast_files_single(self):
-        """Tests whether a short single fasta-like string can be split into DNA sequence and chromosome name."""
-        package = "builtins"
-        with patch("{}.open".format(package), mock_open(read_data=">some_fasta_sequence\nACTGCTCCCTGGaaaTCG\n")) as mock_file:
-            keys, fastas = sfp.fasta_splitting_by_sequence(mock_file, None, None, False, 'all')
-            self.assertEqual(keys, ['some_fasta_sequence'])
-            self.assertEqual([fastas[key] for key in keys], ['ACTGCTCCCTGGaaaTCG'])
+RECORDS = {
+    "chr1": "ACTGCTCCCTGGaaaTCGGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGG",
+    "chr2": "AAACCTGCcctGttug",
+    "chr3": "CTGATCGTTTAGCAGCA",
+}
 
-    def test_parsing_fasta_files_multiple(self):
-        """Tests whether several short fasta-like strings can be split into DNA sequences and chromosome names."""
-        package = "builtins"
-        with patch("{}.open".format(package), mock_open(read_data=">some_fasta_sequence\nACTGCTCCCTGGaaaTCG\n>yet_another_fasta_sequence\nAAACCTGCcctGttug\n>fasta_sequence_again\nAAAAAAACCTGCTAGctaatat\n>and_again_sequence\nCTGATCGTTTAGCAGCA\n")) as mock_file:
-            keys, fastas = sfp.fasta_splitting_by_sequence(mock_file, None, None, False, 'all')
-            self.assertEqual(keys, ['some_fasta_sequence', 'yet_another_fasta_sequence', 'fasta_sequence_again', 'and_again_sequence'])
-            self.assertEqual([fastas[key] for key in keys], ['ACTGCTCCCTGGaaaTCG', 'AAACCTGCcctGttug', 'AAAAAAACCTGCTAGctaatat', 'CTGATCGTTTAGCAGCA'])
 
-    def test_parsing_fasta_files_multiple_rn_line_terminators(self):
-        """Tests whether several short fasta-like strings can be split into DNA sequences and chromosome names when they have Windows specific line terminators."""
-        package = "builtins"
-        with patch("{}.open".format(package), mock_open(read_data=">some_fasta_sequence\r\nGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG\r\nGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG" \
-                    "\r\n>fasta_sequence_again\r\nAAAAAAACCTGCTAGctaatatGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG\r\n>and_again_sequence\r\n" \
-                    "CTGATCGTTTAGCAGCGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCGA\r\n")) as mock_file:
-            keys, fastas = sfp.fasta_splitting_by_sequence(mock_file, None, None, False, 'all')
-            self.assertEqual(keys, ['some_fasta_sequence', 'fasta_sequence_again', 'and_again_sequence'])
-            self.assertEqual([fastas[key] for key in keys],['GGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCGGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG',
-                                        'AAAAAAACCTGCTAGctaatatGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG',
-                                        'CTGATCGTTTAGCAGCGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCGA'])
-    def test_parsing_fasta_files_multiple_types_of_line_terminators(self):
-        """Tests whether several short fasta-like strings can be split into DNA sequences and chromosome names when they have different line terminators."""
-        package = "builtins"
-        with patch("{}.open".format(package), mock_open(read_data=">some_fasta_sequence\r\n\r\n\r\n\r\nGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG\r\nGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG" \
-                    "\r\n>fasta_sequence_again\nAAAAAAACCTGCTAGctaatatGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG\n>and_again_sequence\r\n" \
-                    "CTGATCGTTTAGCAGCGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCGA\n")) as mock_file:
-            keys, fastas = sfp.fasta_splitting_by_sequence(mock_file, None, None, False, 'all')
-            self.assertEqual(keys, ['some_fasta_sequence', 'fasta_sequence_again', 'and_again_sequence'])
-            self.assertEqual([fastas[key] for key in keys],['GGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCGGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG',
-                                        'AAAAAAACCTGCTAGctaatatGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCG',
-                                        'CTGATCGTTTAGCAGCGGGCGGCGACCTCGCGGGTTTTCGCTATTTATGAAAATTTTCCGGTTTAAGGCGTTTCCGTTCTTCTTCGA'])
+def fasta_text(records, width=10, newline="\n", description=" some description"):
+    lines = []
+    for name, sequence in records.items():
+        lines.append(">" + name + description)
+        lines.extend(sequence[i : i + width] for i in range(0, len(sequence), width))
+    return newline.join(lines) + newline
 
-    
-if __name__ == '__main__':
-    unittest.main()
+
+@pytest.fixture(params=["plain", "gzip", "bgzip"])
+def reference(request, tmp_path):
+    plain = tmp_path / "reference.fa"
+    plain.write_text(fasta_text(RECORDS))
+    if request.param == "plain":
+        return str(plain)
+    if request.param == "gzip":
+        compressed = tmp_path / "reference.fa.gz"
+        compressed.write_bytes(gzip.compress(plain.read_bytes()))
+        return str(compressed)
+    compressed = str(tmp_path / "reference.fa.gz")
+    pysam.tabix_compress(str(plain), compressed)
+    return compressed
+
+
+def test_reference_names(reference):
+    assert sfp.reference_names(reference) == ["chr1", "chr2", "chr3"]
+
+
+def test_read_whole_reference(reference):
+    assert sfp.read_reference(reference) == RECORDS
+
+
+def test_read_selected_sequence_of_multiline_reference(reference):
+    assert sfp.read_reference(reference, ["chr2"]) == {"chr2": RECORDS["chr2"]}
+
+
+def test_missing_sequence_is_an_error(reference):
+    with pytest.raises(KeyError):
+        sfp.read_reference(reference, ["chrX"])
+
+
+def test_missing_file_is_an_error(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        sfp.read_reference(str(tmp_path / "absent.fa"))
+
+
+def test_records_with_windows_line_endings_and_blank_lines():
+    text = fasta_text(RECORDS, newline="\r\n").replace(">chr2", "\r\n\r\n>chr2")
+    assert dict(sfp.fasta_records(text.splitlines(keepends=True))) == RECORDS
+
+
+def test_reference_with_underscores(tmp_path):
+    plain = tmp_path / "with spaces.fa"
+    plain.write_text(fasta_text(RECORDS))
+    target = sfp.write_reference_with_underscores(str(plain))
+    assert target == str(tmp_path / "with spaces_no_spaces.fa.gz")
+    with pysam.FastaFile(target) as fasta:
+        assert list(fasta.references) == [
+            "chr1_some_description",
+            "chr2_some_description",
+            "chr3_some_description",
+        ]
+        assert fasta.fetch("chr3_some_description") == RECORDS["chr3"]
+    # an existing copy is reused
+    assert sfp.write_reference_with_underscores(str(plain)) == target

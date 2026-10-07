@@ -1,69 +1,91 @@
-import os
-import pdb
-import pysam
 import logging
+import os
+from itertools import product
 
+import pysam
 
 from astair2.DNA_sequences_operations import reverse_complementary
 
-logging.basicConfig(level=logging.DEBUG)
 logs = logging.getLogger(__name__)
+
+_CONTEXT_OF = {
+    # later groups override earlier ones (CGN is CN, not CpG)
+    **{"C" + x + z: "CHH" for x, z in product("ACT", "ACT")},
+    **{"C" + x + "G": "CHG" for x in "ACT"},
+    **{"CG" + x: "CpG" for x in "ACTGN"},
+    **{"CN" + z: "CN" for z in "NACTG"},
+    **{"C" + z + "N": "CN" for z in "NACTG"},
+}
+
+
+def _variant_context(variant, fasta):
+    """(specific context, context, strand base) of a variant whose alternative alleles include C or G.
+
+    Near the sequence ends, or beyond them, the specific context is shorter than three bases and
+    the context is CN."""
+    if "C" in variant.alts:
+        base = "C"
+        subcontext = (
+            "C" + fasta[variant.start + 1 : variant.start + 3].upper()
+            if variant.start + 3 < len(fasta)
+            else "CNN"
+        )
+    else:
+        base = "G"
+        subcontext = (
+            reverse_complementary(
+                fasta[variant.start - 2 : variant.start].upper() + "G"
+            )
+            if variant.start - 2 >= 0
+            else "CNN"
+        )
+    return subcontext, _CONTEXT_OF[subcontext] if len(subcontext) == 3 else "CN", base
 
 
 def read_vcf(vcf_file, chromosome, fasta, threads, start, end):
-    """Opens neatly and separately the vcf file and takes all SNPs of interest from the current chromosomes."""
-    try:
-        if os.path.isfile(vcf_file) and not os.path.isfile(os.path.join(str(vcf_file) + '.tbi')):
-            logs.info("Creating a TABIX index for the provided VCF file. This may take a while...")
-            pysam.tabix_index(vcf_file, preset='vcf')
-        true_variants, possible_mods, all_contexts = set(), dict(), dict()
-        CHG = ['C' + x + 'G' for x in ['A', 'C', 'T']]
-        CHH = ['C' + x + z for x in ['A', 'C', 'T'] for z in ['A', 'C', 'T']]
-        CG = ['C' + 'G' + x for x in ['A', 'C', 'T', 'G', 'N']]
-        CN = ['C' + 'N' + z for z in ['N', 'A', 'C', 'T', 'G']]
-        CN.extend(['C' + z + 'N' for z in ['N', 'A', 'C', 'T', 'G']])
-        for item_c in CHH:
-            all_contexts[item_c] = 'CHH'
-        for item_c in CHG:
-            all_contexts[item_c] = 'CHG'
-        for item_c in CG:
-            all_contexts[item_c] = 'CpG' 
-        for item_c in CN:
-            all_contexts[item_c] = 'CN'
-        file_to_open = pysam.VariantFile(vcf_file, 'r', threads=threads)
-        try:
-            if file_to_open.is_valid_reference_name(chromosome):
-                variants_ = file_to_open.fetch(chromosome)
-            elif file_to_open.is_valid_reference_name(chromosome[3:]):
-                variants_ = file_to_open.fetch(chromosome[3:])
-        except Exception:
-            logs.error('The input VCF file chromosome names do not match those in the fasta and bam file.', exc_info=True)
-            raise
-        for variant in variants_:
-            if variant.chrom.isnumeric() and not chromosome.isnumeric():
-                variant_chrom = 'chr'+ variant.chrom
-            else:
-                variant_chrom = variant.chrom
-            if (variant_chrom == chromosome and start==None and end==None) or (variant_chrom == chromosome and variant.start>=start and variant.start+1<=end):
-                if (variant.ref in ["C", "G"]) or ((variant.ref in ["C", "G"] and variant.filter["PASS"])):
-                    true_variants.add(tuple((variant_chrom, variant.start, variant.start+1)))
-                if variant.alts!=None:
-                    if (set(variant.alts).intersection({'C'}) or  set(variant.alts).intersection({'G'})) or (set(variant.alts).intersection({'C'}) or  set(variant.alts).intersection({'G'}) and variant.filter["PASS"]):
-                        subcontext, context = 'CNN', 'CN'
-                        if 'C' in variant.alts:
-                            if variant.start+3 < len(fasta):
-                                subcontext = ('C'+fasta[variant.start+1:variant.start+3].upper())
-                                if len(subcontext) == 3:
-                                    context = all_contexts[subcontext]
-                            possible_mods[tuple((variant_chrom, variant.start, variant.start+1))] = (subcontext, context, 'C', variant.ref)
-                        else:
-                            if variant.start-2 >= 0:
-                                subcontext = reverse_complementary(fasta[variant.start-2:variant.start].upper()+'G')
-                                if len(subcontext) == 3:
-                                    context = all_contexts[subcontext]
-                            possible_mods[tuple((variant_chrom, variant.start, variant.start+1))] = (subcontext, context, 'G', variant.ref)
-        return true_variants, possible_mods
-        file_to_open.close()
-    except Exception:
-        logs.error('The input VCF file does not exist or is truncated.', exc_info=True)
-        raise
+    """Reads the variants of one chromosome (optionally restricted to start-end) from a VCF file.
+
+    Returns the positions (chrom, start, end) of variants with a C or G reference allele, and
+    {position: (specific context, context, strand base, reference allele)} for variants with a C or
+    G alternative allele, which may create new cytosines. The FILTER column is not taken into account.
+    """
+    if os.path.isfile(vcf_file) and not os.path.isfile(vcf_file + ".tbi"):
+        logs.info(
+            "Creating a TABIX index for the provided VCF file. This may take a while..."
+        )
+        pysam.tabix_index(vcf_file, preset="vcf")
+    true_variants, possible_mods = set(), {}
+    with pysam.VariantFile(vcf_file, "r", threads=threads) as variants:
+        name = next(
+            (
+                name
+                for name in (chromosome, chromosome[3:])
+                if variants.is_valid_reference_name(name)
+            ),
+            None,
+        )
+        if name is None:
+            raise ValueError(
+                "The chromosome {} is not in the VCF file {}; the chromosome names must match "
+                "those in the FASTA and BAM files.".format(chromosome, vcf_file)
+            )
+        for variant in variants.fetch(name):
+            variant_chrom = (
+                "chr" + variant.chrom
+                if variant.chrom.isnumeric() and not chromosome.isnumeric()
+                else variant.chrom
+            )
+            if variant_chrom != chromosome:
+                continue
+            if not (start is None and end is None) and not (
+                variant.start >= start and variant.start + 1 <= end
+            ):
+                continue
+            position = (variant_chrom, variant.start, variant.start + 1)
+            if variant.ref in ("C", "G"):
+                true_variants.add(position)
+            if variant.alts is not None and {"C", "G"} & set(variant.alts):
+                possible_mods[position] = _variant_context(variant, fasta) + (
+                    variant.ref,
+                )
+    return true_variants, possible_mods

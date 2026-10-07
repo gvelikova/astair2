@@ -1,185 +1,126 @@
+"""Locating cytosines of the requested sequence contexts in a reference sequence.
+
+Every context is a fixed-length motif matched case-insensitively. Forward
+motifs are searched on the given strand and report the position of their
+first base (a C); reverse motifs are searched on the complementary strand and
+report the position of their last base (the G opposite the C).
+"""
+
 import re
-import pdb
-import logging
-import itertools
-import ahocorasick
+from collections import Counter
 
 from astair2.DNA_sequences_operations import complementary
 
-logging.basicConfig(level=logging.DEBUG)
-logs = logging.getLogger(__name__)
+USER_CONTEXT = "user defined context"
 
-def sequence_context_set_creation(desired_sequence, user_defined_context):
-    """Prepares sets of possible cytosine contexts."""
-    letters_top = ['A', 'C', 'T', 'a', 'c', 't']
-    if user_defined_context:
-        user = list(map(''.join, itertools.product(*zip(user_defined_context.upper(), user_defined_context.lower()))))
-    if desired_sequence == 'all':
-        CHG = [y + x + z for x in letters_top for y in ['C', 'c'] for z in ['G', 'g']]
-        CHGb = [y + x + z for x in letters_top for z in ['C', 'c'] for y in ['G', 'g']]
-        CHH = [y + x + z for x in letters_top for y in ['C', 'c'] for z in letters_top]
-        CHHb = [y + x + z for x in letters_top for z in ['C', 'c'] for y in letters_top]
-        CG = [y + z + x for y in ['C', 'c'] for z in ['G', 'g'] for x in ['A', 'C', 'T', 'a', 'c', 't', 'g', 'G']]
-        CGb = [x+z + y for y in ['C', 'c'] for z in ['G', 'g'] for x in ['A', 'C', 'T', 'a', 'c', 't', 'g', 'G']]
-        CN = [y + z + x for x in ['N', 'n', 'A', 'C', 'T', 'a', 'c', 't'] for y in ['C', 'c'] for z in ['N', 'n']]
-        CNb = [y + x + z for x in ['N', 'n', 'A', 'C', 'T', 'a', 'c', 't'] for z in ['C', 'c'] for y in ['N', 'n']]
-        if user_defined_context:
-            contexts = {'CHG': list(CHG), 'CHGb': list(CHGb), 'CHH': list(CHH), 'CHHb': list(CHHb), 'CG': list(CG), 'CGb': list(CGb),'CN': list(CN), 'CNb': list(CNb), 'user': list(user)}
-            all_keys = list(('CHG', 'CHGb', 'CHH', 'CHHb', 'CG', 'CGb', 'CN', 'CNb', 'user'))
+# key: (regex on the upper-cased strand, context label, searched on the complement)
+MOTIFS = {
+    "CHG": ("C[ACT]G", "CHG", False),
+    "CHGb": ("G[ACT]C", "CHG", True),
+    "CHH": ("C[ACT][ACT]", "CHH", False),
+    "CHHb": ("[ACT][ACT]C", "CHH", True),
+    "CG": ("CG[ACTG]", "CpG", False),
+    "CGb": ("[ACTG]GC", "CpG", True),
+    "CN": ("CN[NACT]", "CN", False),
+    "CNb": ("N[NACT]C", "CN", True),
+}
+
+CONTEXT_KEYS = {
+    "all": ("CHG", "CHGb", "CHH", "CHHb", "CG", "CGb", "CN", "CNb"),
+    "CpG": ("CG", "CGb"),
+    "CHG": ("CHG", "CHGb"),
+    "CHH": ("CHH", "CHHb"),
+}
+
+
+def context_keys(context, user_defined_context):
+    """The motif keys searched for a context choice, in the order they are applied."""
+    if user_defined_context and "C" not in user_defined_context.upper():
+        raise ValueError(
+            "The user-defined context {} does not contain a cytosine.".format(
+                user_defined_context
+            )
+        )
+    return CONTEXT_KEYS[context] + (("user",) if user_defined_context else ())
+
+
+def _overlapping_matches(pattern, sequence):
+    """Start index and text of every (possibly overlapping) match of pattern."""
+    return (
+        (match.start(), match.group(1))
+        for match in re.finditer("(?=({}))".format(pattern), sequence)
+    )
+
+
+def _in_region(position, region):
+    return region is None or (position >= region[1] and position + 1 <= region[2])
+
+
+def _motif_hits(key, upper, complement):
+    """(position, specific context, context label, reference base) for one motif."""
+    pattern, label, on_complement = MOTIFS[key]
+    if on_complement:
+        return (
+            (start + 2, found[::-1], label, "G")
+            for start, found in _overlapping_matches(pattern, complement)
+        )
+    return (
+        (start, found, label, "C")
+        for start, found in _overlapping_matches(pattern, upper)
+    )
+
+
+def _user_hits(user_defined_context, upper, complement):
+    """(position, counted key, user context, label, reference base) for a user-defined context."""
+    motif = user_defined_context.upper()
+    forward_offset = motif.find("C")
+    reverse_offset = len(motif) - 1 - motif[::-1].find("C")
+    forward = (
+        (start + forward_offset, user_defined_context, USER_CONTEXT, "C")
+        for start, _ in _overlapping_matches(re.escape(motif), upper)
+    )
+    reverse = (
+        (start + reverse_offset, user_defined_context, USER_CONTEXT, "G")
+        for start, _ in _overlapping_matches(re.escape(motif), complement)
+    )
+    return forward, reverse
+
+
+def find_cytosine_contexts(
+    sequence,
+    sequence_name,
+    keys,
+    user_defined_context=None,
+    region=None,
+    stranded=False,
+):
+    """Finds the cytosines of the requested contexts in a sequence.
+
+    Returns a dictionary {(name, start, end[, strand]): (specific context, context, reference base)}
+    and a Counter of how many times each motif key and specific context occurs in the whole
+    sequence, irrespective of the region.
+    """
+    upper = sequence.upper()
+    complement = complementary(upper)
+    positions, counts = {}, Counter()
+    for key in keys:
+        if key == "user":
+            hit_groups, counted = (
+                _user_hits(user_defined_context, upper, complement),
+                None,
+            )
         else:
-            contexts = {'CHG': list(CHG), 'CHGb': list(CHGb), 'CHH': list(CHH), 'CHHb': list(CHHb), 'CG': list(CG), 'CGb': list(CGb), 'CN': list(CN), 'CNb': list(CNb)}
-            all_keys = list(('CHG', 'CHGb', 'CHH', 'CHHb', 'CG', 'CGb', 'CN', 'CNb'))
-    elif desired_sequence == 'CpG':
-        CG = [y + z + x for y in ['C', 'c'] for z in ['G', 'g'] for x in ['A', 'C', 'T', 'a', 'c', 't', 'g', 'G']]
-        CGb = [x+z + y  for y in ['C', 'c'] for z in ['G', 'g'] for x in ['A', 'C', 'T', 'a', 'c', 't', 'g', 'G']]
-        if user_defined_context:
-            contexts = {'CG': list(CG), 'CGb': list(CGb), 'user': list(user)}
-            all_keys = list(( 'CG', 'CGb', 'user'))
-        else:
-            contexts = {'CG': list(CG), 'CGb': list(CGb)}
-            all_keys = list(('CG', 'CGb'))
-    elif desired_sequence == 'CHG':
-        CHG = [y + x + z for x in letters_top for y in ['C', 'c'] for z in ['G', 'g']]
-        CHGb = [y + x + z for x in letters_top for z in ['C', 'c'] for y in ['G', 'g']]
-        if user_defined_context:
-            contexts = {'CHG': list(CHG), 'CHGb': list(CHGb), 'user': list(user)}
-            all_keys = list(( 'CHG', 'CHGb', 'user'))
-        else:
-            contexts = {'CHG': list(CHG), 'CHGb': list(CHGb)}
-            all_keys = list(('CHG', 'CHGb'))
-    elif desired_sequence == 'CHH':
-        CHH = [y + x + z for x in letters_top for y in ['C', 'c'] for z in letters_top]
-        CHHb = [y + x + z for x in letters_top for z in ['C', 'c'] for y in letters_top]
-        if user_defined_context:
-            contexts = {'CHH': list(CHH), 'CHHb': list(CHHb), 'user': list(user)}
-            all_keys = list(( 'CHH', 'CHHb', 'user'))
-        else:
-            contexts = {'CHH': list(CHH), 'CHHb': list(CHHb)}
-            all_keys = list(('CHH', 'CHHb'))
-    return contexts, all_keys
-
-
-def ahocorasick_search(objects, context, string, string_name, user_defined_context, data_context, context_total_counts, region, strand):
-    """Looks for cytosine contexts in the reference fasta file."""
-    auto = ahocorasick.Automaton()
-    for pattern in context[objects]:
-        if not isinstance(pattern, str):
-            pattern = str(pattern)
-        auto.add_word(pattern, pattern)
-    auto.make_automaton()
-    if objects[-1] == 'b':
-        for end_ind, found in auto.iter(complementary(string)):
-            context_total_counts[objects] += 1
-            reversed = list(found.upper())
-            reversed.reverse()
-            context_total_counts["".join(reversed)] += 1
-            if region is None or (end_ind >= region[1] and end_ind+1 <=region[2]):
-                if strand is None:
-                    if objects != 'CGb':
-                        data_context[(string_name, end_ind, end_ind + 1)] = tuple(("".join(reversed), objects[0:-1], 'G'))
-                    else:
-                        data_context[(string_name, end_ind, end_ind + 1)] = tuple(("".join(reversed), 'CpG', 'G'))
-                else:
-                    if objects != 'CGb':
-                        data_context[(string_name, end_ind, end_ind + 1, '-')] = tuple(("".join(reversed), objects[0:-1], 'G'))
-                    else:
-                        data_context[(string_name, end_ind, end_ind + 1, '-')] = tuple(("".join(reversed), 'CpG', 'G'))
-    elif objects == 'CG':
-        for end_ind, found in auto.iter(string):
-            context_total_counts[objects] += 1
-            context_total_counts[found.upper()] += 1
-            if strand is None:
-                if region is None or (end_ind -2  >= region[1] and end_ind - 1 <= region[2]):
-                    data_context[(string_name, end_ind - 2, end_ind - 1)] = tuple((found.upper(), 'CpG', 'C'))
-            else:
-                if region is None or (end_ind -2  >= region[1] and end_ind - 1 <= region[2]):
-                    data_context[(string_name, end_ind - 2, end_ind - 1, '+')] = tuple((found.upper(), 'CpG', 'C'))
-    elif objects == 'CHG' or objects == 'CHH':
-        for end_ind, found in auto.iter(string):
-            context_total_counts[objects] += 1
-            context_total_counts[found.upper()] += 1
-            if strand is None:
-                if region is None or (end_ind - 2 >= region[1] and end_ind - 1 <= region[2]):
-                    data_context[(string_name, end_ind - 2, end_ind - 1)] = tuple((found.upper(), objects, 'C'))
-            else:
-                if region is None or (end_ind - 2 >= region[1] and end_ind - 1 <= region[2]):
-                    data_context[(string_name, end_ind - 2, end_ind - 1, '+')] = tuple((found.upper(), objects, 'C'))
-    elif objects == 'CN':
-        for end_ind, found in auto.iter(string):
-            context_total_counts[objects] += 1
-            context_total_counts[found.upper()] += 1
-            if strand is None:
-                if region is None or (end_ind - 2 >= region[1] and end_ind - 1 <= region[2]):
-                    data_context[(string_name, end_ind - 2, end_ind -1 )] = tuple((found.upper(), 'CN', 'C'))
-            else:
-                if region is None or (end_ind - 2 >= region[1] and end_ind - 1 <= region[2]):
-                    data_context[(string_name, end_ind - 2, end_ind -1, '+')] = tuple((found.upper(), 'CN', 'C'))
-    elif objects == 'user':
-        index_c = user_defined_context.upper().find('C')
-        if index_c == -1:
-            index_c = None
-        try:
-            for end_ind, found in auto.iter(string):
-                context_total_counts['user defined context'] += 1
-                if strand is None:
-                    if region is None or (end_ind - len(user_defined_context) + index_c + 1 >= region[1] and end_ind - len(user_defined_context) + index_c + 2<= region[2]):
-                        data_context[(string_name, end_ind - len(user_defined_context) + index_c + 1, end_ind - len(user_defined_context) + index_c + 2)] = tuple(
-                            (user_defined_context, 'user defined context', 'C'))
-                else:
-                    if region is None or (end_ind - len(user_defined_context) + index_c + 1 >= region[1] and end_ind - len(user_defined_context) + index_c + 2<= region[2]):
-                        data_context[(string_name, end_ind - len(user_defined_context) + index_c + 1, end_ind - len(user_defined_context) + index_c + 2, '+')] = tuple(
-                            (user_defined_context, 'user defined context', 'C'))
-            for end_ind, found in auto.iter(complementary(string)):
-                reversed = list(found.upper())
-                reversed.reverse()
-                index_c = "".join(reversed).upper().find('C')
-                context_total_counts['user defined context'] += 1
-                if strand is None:
-                    if region is None or (end_ind - index_c >= region[1] and end_ind - index_c + 1 <= region[2]):
-                        data_context[(string_name, end_ind - index_c, end_ind - index_c + 1)] = tuple((user_defined_context, 'user defined context', 'G'))
-                else:
-                    if region is None or (end_ind - index_c >= region[1] and end_ind - index_c + 1 <= region[2]):
-                        data_context[(string_name, end_ind - index_c, end_ind - index_c + 1, '-')] = tuple((user_defined_context, 'user defined context', 'G'))
-        except TypeError:
-            logs.error('The user-provided context does not contain cytosines. asTair will not output any user-provided context summary.', exc_info=True)
-            raise
-    if context in ['all', 'CG', 'CGb']:
-        if re.match(r'CG', string[0:3]) and region is None or (re.match(r'CG', string[0:3]).start() >= region[1] and re.match(r'CG', string[0:3]).start() + 2 <= region[2]):
-            context_total_counts['CG'] += 2
-            if strand is None:
-                data_context[(string_name, re.match(r'CG', string[0:3]).start(), re.match(r'CG', string[0:3]).start() + 1)] = tuple(('CGN', 'CpG', 'C'))
-                data_context[(string_name, re.match(r'CG', string[0:3]).start() + 1, re.match(r'CG', string[0:3]).start() + 2)] = tuple(('CGN', 'CpG', 'G'))
-            else:
-                data_context[(string_name, re.match(r'CG', string[0:3]).start(), re.match(r'CG', string[0:3]).start() + 1, '+')] = tuple(('CGN', 'CpG', 'C'))
-                data_context[(string_name, re.match(r'CG', string[0:3]).start() + 1, re.match(r'CG', string[0:3]).start() + 2, '-')] = tuple(('CGN', 'CpG', 'G'))
-        elif re.match(r'CG', string[-2:]) and region is None or (re.match(r'CG', string[-2:]).start() >= region[1] and re.match(r'CG', string[-2:]).start() + 2 <= region[2]):
-            context_total_counts['CG'] += 2
-            if strand is None:
-                data_context[(string_name, re.match(r'CG', string[-2:]).start(), re.match(r'CG', string[-2:]).start() + 1)] = tuple(('CGN', 'CpG', 'C'))
-                data_context[(string_name, re.match(r'CG', string[-2:]).start() + 1, re.match(r'CG', string[-2:]).start() + 2)] = tuple(('CGN', 'CpG', 'G'))
-            else:
-                data_context[(string_name, re.match(r'CG', string[-2:]).start(), re.match(r'CG', string[-2:]).start() + 1, '+')] = tuple(('CGN', 'CpG', 'C'))
-                data_context[(string_name, re.match(r'CG', string[-2:]).start() + 1, re.match(r'CG', string[-2:]).start() + 2, '-')] = tuple(('CGN', 'CpG', 'G'))
-
-
-def context_sequence_search(context, key, fastas, string_name, user_defined_context, context_total_counts, region, strand):
-    """Starts the search for cytosine contexts in the reference fasta file."""
-    data_context = {}
-    try:
-        string = fastas[string_name]
-    except Exception:
-        logs.error('The FASTA file is not indexed or chromosome names contain spaces or do not exist.', exc_info=True)
-    if key.count('C') == 0:
-        for objects in key:
-            try:
-                ahocorasick_search(objects, context, string, string_name, user_defined_context, data_context, context_total_counts, region, strand)
-            except TypeError:
-                pass
-    else:
-        objects = "".join(key)
-        try:
-            ahocorasick_search(objects, context, string, string_name, user_defined_context, data_context, context_total_counts, region, strand)
-        except TypeError:
-            pass
-    return data_context
-
+            hit_groups, counted = (_motif_hits(key, upper, complement),), key
+        for hits in hit_groups:
+            for position, specific, label, base in hits:
+                counts[counted or USER_CONTEXT] += 1
+                if counted:
+                    counts[specific] += 1
+                if _in_region(position, region):
+                    strand = ("+" if base == "C" else "-",) if stranded else ()
+                    positions[(sequence_name, position, position + 1) + strand] = (
+                        specific,
+                        label,
+                        base,
+                    )
+    return positions, counts

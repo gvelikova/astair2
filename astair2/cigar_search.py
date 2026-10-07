@@ -1,62 +1,64 @@
 import re
+from itertools import accumulate
+
+_CIGAR_OPERATION = re.compile(r"(\d+)([MIDNSHP=X])")
 
 
-def cigar_search(read_data):
-    """Looks whether there are indels, soft clipping or pads the CIGAR string"""
-    changes = [int(s) for s in re.findall(r'\d+', read_data)]
-    non_overlap = [x + 1 if x == 0 else x for x in changes]
-    names = list(re.findall(r'[^\W\d_]+', read_data))
-    positions = [x for x in [sum(non_overlap[0:i]) for i in range(1, len(non_overlap)+1)]]
-    return names, positions, changes
+def cigar_search(cigar_string):
+    """Splits a CIGAR string into operation names, cumulative end positions and lengths.
+
+    Zero-length operations count as one base for the cumulative positions."""
+    operations = _CIGAR_OPERATION.findall(cigar_string)
+    lengths = [int(length) for length, _ in operations]
+    names = [name for _, name in operations]
+    positions = list(accumulate(length or 1 for length in lengths))
+    return names, positions, lengths
 
 
-def position_correction_cigar(read, method, random_sample, positions, reverse_modification):
-    """Uses the CIGAR string information to correct the expected cytosine positions."""
-    names, positions_cigar, changes = cigar_search(read.cigarstring)
-    index = 0
-    for change in names:
-        if len(positions) != 0:
-            if change == 'D':
-                if isinstance(list(positions)[0], tuple):
-                    subsample = random_sample.intersection(positions)
-                    if method == 'CtoT' and reverse_modification == False:
-                        corrected_positions = [x[1] - abs(read.qstart - read.reference_start) if (x[1] - abs(read.qstart - read.reference_start)) < positions_cigar[index] else x[1] - abs(read.qstart - read.reference_start) - changes[index] for x in positions if x not in subsample]
-                    else:
-                        corrected_positions = [x[1] - abs(read.qstart - read.reference_start) if (x[1] - abs(
-                            read.qstart - read.reference_start)) < positions_cigar[index] else x[1] - abs(
-                            read.qstart - read.reference_start) - changes[index] for x in subsample]
-                else:
-                    corrected_positions = [x if x < positions_cigar[index] else x - changes[index] for x in positions]
-                index += 1
-                positions = corrected_positions
-            elif change == 'I':
-                if isinstance(list(positions)[0], tuple):
-                    subsample = random_sample.intersection(positions)
-                    if method == 'CtoT' and reverse_modification == False:
-                        corrected_positions = [x[1] - abs(read.qstart-read.reference_start) if (x[1] - abs(read.qstart-read.reference_start)) < positions_cigar[index] else x[1] - abs(read.qstart-read.reference_start) + changes[index] for x in positions if x not in subsample]
-                    else:
-                        corrected_positions = [x[1] - abs(read.qstart - read.reference_start) if (x[1] - abs(
-                            read.qstart - read.reference_start)) < positions_cigar[index] else x[1] - abs(
-                            read.qstart - read.reference_start) + changes[index] for x in subsample]
-                else:
-                    corrected_positions = [x if x < positions_cigar[index] else x + changes[index] for x in positions]
-                index += 1
-                positions = corrected_positions
-            elif change == 'S' or change == 'H':
-                if isinstance(list(positions)[0], tuple):
-                    subsample = random_sample.intersection(positions)
-                    if method == 'CtoT' and reverse_modification == False:
-                        corrected_positions = [x[1] - abs(read.qstart - read.reference_start) for x in positions if
-                                               x not in subsample]
-                    else:
-                        corrected_positions = [x[1] - abs(read.qstart-read.reference_start) for x in subsample]
-                else:
-                    if index == 0:
-                        corrected_positions = [x for x in positions if x > positions_cigar[index]]
-                    else:
-                        corrected_positions = [x for x in positions if x < positions_cigar[index]]
-                index += 1
-                positions = corrected_positions
-            else:
-                index += 1
+def _apply_operation(name, operation_index, end, length, positions):
+    """Shifts read positions past a deletion or insertion, or drops positions inside a clip."""
+    if name == "D":
+        return [x if x < end else x - length for x in positions]
+    if name == "I":
+        return [x if x < end else x + length for x in positions]
+    if name in ("S", "H"):
+        return [x for x in positions if (x > end if operation_index == 0 else x < end)]
+    return positions
+
+
+def correct_positions_for_cigar(cigar_string, positions):
+    """Corrects reference-derived read positions for the indels and clips of a CIGAR string."""
+    for operation_index, (name, end, length) in enumerate(
+        zip(*cigar_search(cigar_string))
+    ):
+        positions = _apply_operation(name, operation_index, end, length, positions)
+    return positions
+
+
+def position_correction_cigar(
+    read, method, random_sample, positions, reverse_modification
+):
+    """Read offsets of the genomic positions (chrom, start, end) that the simulator changes in a read,
+    corrected for its indels and clips.
+
+    In CtoT mode the positions to change are those not in the random sample (the unmodified ones,
+    which get converted), otherwise those in the sample. The genomic positions are converted to
+    read offsets at the first indel or clip; that operation only shifts the offsets, it does not
+    drop clipped ones."""
+    names, ends, lengths = cigar_search(read.cigarstring)
+    if not positions:
+        return positions
+    selected = random_sample.intersection(positions)
+    if method == "CtoT" and not reverse_modification:
+        selected = [x for x in positions if x not in selected]
+    offset = abs(read.qstart - read.reference_start)
+    converted = False
+    for operation_index, (name, end, length) in enumerate(zip(names, ends, lengths)):
+        if name not in ("D", "I", "S", "H"):
+            continue
+        if not converted:
+            positions, converted = [x[1] - offset for x in selected], True
+            if name in ("S", "H"):
+                continue
+        positions = _apply_operation(name, operation_index, end, length, positions)
     return positions

@@ -5,6 +5,25 @@ on:
   pull_request:
 
 jobs:
+  quality:
+    name: Quality checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package with dev dependencies
+        run: pip install ".[dev]"
+      - name: Black
+        run: black --check astair2 tests
+      - name: Mypy
+        run: mypy astair2
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     name: Python ${{ matrix.python-version }} (${{ matrix.deps }} deps)
     runs-on: ubuntu-latest
@@ -24,7 +43,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install minimum dependency versions
         if: matrix.deps == 'minimum'
-        run: pip install "click==8.1.*" "pysam==0.22.*" "pyahocorasick==2.1.*" "numpy==1.26.*" "matplotlib==3.9.*"
+        run: pip install "click==8.1.*" "pysam==0.22.*" "numpy==1.26.*" "matplotlib==3.9.*"
       - name: Install package
         run: pip install ".[plot,test]"
       - name: Run tests

@@ -1,134 +1,110 @@
-import re
-import os 
-import pdb
+"""Reading reference sequences from FASTA files.
+
+Plain and BGZIP-compressed files are read through their faidx index (which
+pysam creates for plain files if it is missing). Files compressed with plain
+gzip cannot be indexed and are parsed in full instead.
+"""
+
 import gzip
-import numpy
+import os
+
 import pysam
-import logging
-import subprocess
-
-logging.basicConfig(level=logging.DEBUG)
-logs = logging.getLogger(__name__)
 
 
-
-def gzipped_fasta_read(fasta_file, reference_absolute_name, reference_extension):
-    "Reads through a GZIP compressed fasta file."
-    return gzip.open(fasta_file, 'rt')
-
-
-def output_fasta_wuth_underscores(reference_extension, fasta_file, reference_absolute_name, reference_dir):
-    """Outputs a FASTA file with underscores in the names."""
-    if reference_extension == '.gz':
-        fasta_handle = gzipped_fasta_read(fasta_file, reference_absolute_name, reference_extension)
-    else:
-        fasta_handle = open(fasta_file, 'r')
-    if not os.path.isfile(reference_dir + os.path.splitext(os.path.basename(reference_absolute_name))[0] + '_no_spaces.fa.gz'):
-        data_line = open(reference_dir + os.path.splitext(os.path.basename(reference_absolute_name))[0] + '_no_spaces.fa', 'w')
-        for fasta_sequence in fasta_handle.readlines():
-            if re.match(r'^>', fasta_sequence.splitlines()[0]):
-                    data_line.write('{}\n'.format(fasta_sequence.splitlines()[0].replace(' ', '_')))
-            else:
-                data_line.write('{}\n'.format(fasta_sequence.splitlines()[0]))
-        try:
-            subprocess.Popen('bgzip {}'.format(reference_dir + os.path.splitext(os.path.basename(reference_absolute_name))[0] + '_no_spaces.fa'), shell=True)
-            logs.info("The program will ouput a BGZIP compressed fasta files with underscores in the reference names for future analyses.")
-        except Exception:
-            subprocess.Popen('gzip {}'.format(reference_dir + os.path.splitext(os.path.basename(reference_absolute_name))[0] + '_no_spaces.fa'), shell=True)
-            logs.info("The program will ouput a GZIP compressed fasta files with underscores in the reference names for future analyses.")
-        data_line.close()
-        fasta_handle.close()
+def _is_plain_gzip(fasta_file):
+    """True for gzip files that are not BGZF (BGZF sets the FEXTRA flag with a 'BC' subfield)."""
+    with open(fasta_file, "rb") as handle:
+        header = handle.read(14)
+    return header[:2] == b"\x1f\x8b" and not (header[3] & 4 and header[12:14] == b"BC")
 
 
-def fasta_splitting_by_sequence(fasta_file, per_chromosome, numbered, add_underscores, all_chromosomes):
-    """Reads the reference line by line, which enables parsing of fasta files with multiple genomes."""
-    try:
-        if isinstance(fasta_file, str):
-            reference_absolute_name = os.path.splitext(os.path.abspath(fasta_file))[0]
-            reference_extension = os.path.splitext(os.path.basename(fasta_file))[1]
-            reference_dir = os.path.dirname(fasta_file)
-            if list(reference_dir)[-1]!="/":
-                reference_dir = reference_dir + "/"
-            if reference_extension == '.gz':
-                compressed_ = 'gzip'
-                try:
-                    test = pysam.FastaFile(fasta_file)
-                    compressed_ = 'bgzip'
-                except Exception:
-                    logs.error('The reference FASTA file was not compressed with BGZIP or does not have an index.', exc_info=True)
-            if add_underscores:
-                output_fasta_wuth_underscores(reference_extension, fasta_file, reference_absolute_name, reference_dir)
-            if reference_extension != '.gz' or compressed_=='bgzip':
-                try:
-                    keys, fastas, sequences, sequences_per_chrom = numpy.array([]), {}, numpy.array([]), numpy.array([])
-                    all_chrom = pysam.FastaFile(fasta_file)
-                    keys = all_chrom.references
-                    if all_chromosomes is None and per_chromosome == 'keys_only':
-                        return keys
-                    elif all_chromosomes is None and per_chromosome != 'keys_only':
-                        sequences_per_chrom = pysam.FastaFile(fasta_file).fetch(per_chromosome)
-                        sequences = "".join(sequences_per_chrom)
-                        fastas[per_chromosome] = sequences
-                        return fastas
-                    else:
-                        for sequence_name in keys:
-                            fastas[sequence_name] = pysam.FastaFile(fasta_file).fetch(sequence_name)
-                        return keys, fastas
-                except Exception:
-                    logs.error('The chromosome does not exist in the genome reference fasta file or the FASTA file is not indexed.', exc_info=True)
-            else:
-                chromosome_found = False
-                keys, fastas, sequences, sequences_per_chrom = [], {}, [], []
-                fasta_handle = gzipped_fasta_read(fasta_file, reference_absolute_name, reference_extension)
-                for fasta_sequence in fasta_handle.readlines():
-                        if re.match(r'^>', fasta_sequence.splitlines()[0]):
-                            if fasta_sequence.splitlines()[0][1:].rfind(' ') == -1:
-                                keys.append(fasta_sequence.splitlines()[0][1:])
-                            else:
-                                logs.info("There are spaces in the sequence names of your reference. Please add them yourself or run asTair with --add_underscores option, which will replace them with underscores and output a new fasta file recommended for future analyses, now it will run analyses with the first word of the reference names, unless you have also set --use_underscores.")
-                                keys.append(fasta_sequence.splitlines()[0][1:].split(' ')[0])
-                            if all_chromosomes is None and per_chromosome == 'keys_only':
-                                fasta_handle.close()
-                                return keys
-                            elif per_chromosome is None:
-                                sequences.append("".join(sequences_per_chrom))
-                                sequences_per_chrom = list()
-                        else:
-                            if per_chromosome is not None:
-                                if keys[-1] == per_chromosome:
-                                    sequences_per_chrom.append(fasta_sequence.splitlines()[0])
-                                    sequences = "".join(sequences_per_chrom)
-                                    fastas[per_chromosome] = sequences
-                                    fasta_handle.close()
-                                    if all_chromosomes is None:
-                                        return fastas
-                                    else:
-                                        return keys, fastas
-                            else:
-                                sequences_per_chrom.append(fasta_sequence.splitlines()[0])
-                if per_chromosome is None and all_chromosomes is not None:
-                    sequences.append("".join(sequences_per_chrom))
-                    sequences = sequences[1:]
-                    for i in range(0, len(keys)):
-                        fastas[keys[i]] = sequences[i]
-                    fasta_handle.close()
-                    return keys, fastas
-        else:
-            keys, fastas, sequences_per_chrom, sequences = [], {}, [], []
-            fasta_handle = open(fasta_file, 'r')
-            for fasta_sequence in fasta_handle.readlines():
-                if re.match(r'^>', fasta_sequence.splitlines()[0]):
-                    keys.append(fasta_sequence.splitlines()[0][1:])
-                    sequences.append("".join(sequences_per_chrom))
-                    sequences_per_chrom = list()
-                else:
-                    sequences_per_chrom.append(fasta_sequence.splitlines()[0])
-            sequences.append("".join(sequences_per_chrom))
-            sequences = sequences[1:]
-            for i in range(0, len(keys)):
-                fastas[keys[i]] = sequences[i]
-            fasta_handle.close()
-            return keys, fastas
-    except Exception:
-        logs.error('The genome reference fasta file does not exist.', exc_info=True)
-        raise
+def _indexed(fasta_file):
+    """An open pysam.FastaFile, or None if the file cannot be indexed (plain gzip)."""
+    if not os.path.isfile(fasta_file):
+        raise FileNotFoundError(
+            "The reference FASTA file {} does not exist.".format(fasta_file)
+        )
+    return None if _is_plain_gzip(fasta_file) else pysam.FastaFile(fasta_file)
+
+
+def _open_text(fasta_file):
+    return (
+        gzip.open(fasta_file, "rt") if fasta_file.endswith(".gz") else open(fasta_file)
+    )
+
+
+def fasta_records(lines):
+    """Yields (name, sequence) for each FASTA record; the name is the first word of the header."""
+    name, chunks = None, []
+    for line in lines:
+        line = line.rstrip("\r\n")
+        if line.startswith(">"):
+            if name is not None:
+                yield name, "".join(chunks)
+            name, chunks = (line[1:].split() or [""])[0], []
+        elif name is not None:
+            chunks.append(line)
+    if name is not None:
+        yield name, "".join(chunks)
+
+
+def reference_names(fasta_file):
+    """The sequence names in a FASTA file, in file order."""
+    fasta = _indexed(fasta_file)
+    if fasta is not None:
+        with fasta:
+            return list(fasta.references)
+    with _open_text(fasta_file) as handle:
+        return [line[1:].split()[0] for line in handle if line.startswith(">")]
+
+
+def read_reference(fasta_file, names=None):
+    """{name: sequence} for the requested sequence names, or for all sequences if names is None."""
+    fasta = _indexed(fasta_file)
+    if fasta is not None:
+        with fasta:
+            wanted = fasta.references if names is None else names
+            missing = [name for name in wanted if name not in fasta.references]
+            if missing:
+                raise KeyError(
+                    "Sequences {} are not in the reference FASTA file {}.".format(
+                        missing, fasta_file
+                    )
+                )
+            return {name: fasta.fetch(name) for name in wanted}
+    with _open_text(fasta_file) as handle:
+        sequences = dict(fasta_records(handle))
+    if names is None:
+        return sequences
+    missing = [name for name in names if name not in sequences]
+    if missing:
+        raise KeyError(
+            "Sequences {} are not in the reference FASTA file {}.".format(
+                missing, fasta_file
+            )
+        )
+    return {name: sequences[name] for name in names}
+
+
+def underscored_reference_path(fasta_file):
+    """Where the copy of a reference with underscores instead of spaces in its sequence names is kept."""
+    absolute = os.path.abspath(fasta_file)
+    stem = os.path.splitext(os.path.basename(os.path.splitext(absolute)[0]))[0]
+    return os.path.join(os.path.dirname(absolute), stem + "_no_spaces.fa.gz")
+
+
+def write_reference_with_underscores(fasta_file):
+    """Writes a BGZIP-compressed copy of the reference in which spaces in the sequence names are
+    replaced by underscores, unless it already exists, and returns its path."""
+    target = underscored_reference_path(fasta_file)
+    if not os.path.isfile(target):
+        plain = target[: -len(".gz")]
+        with _open_text(fasta_file) as source, open(plain, "w") as output:
+            for line in source:
+                line = line.rstrip("\r\n")
+                output.write(
+                    (line.replace(" ", "_") if line.startswith(">") else line) + "\n"
+                )
+        pysam.tabix_compress(plain, target, force=True)
+        os.remove(plain)
+    return target
