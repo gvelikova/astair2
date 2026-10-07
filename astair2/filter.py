@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-from __future__ import division
-from __future__ import print_function
-
 import re
 import os
 import sys
@@ -16,9 +13,9 @@ from os import path
 from datetime import datetime
 
 
-from astair.cigar_search import cigar_search
-from astair.bam_file_parser import bam_file_opener
-from astair.simple_fasta_parser import fasta_splitting_by_sequence
+from astair2.cigar_search import cigar_search
+from astair2.bam_file_parser import bam_file_opener
+from astair2.simple_fasta_parser import fasta_splitting_by_sequence
 
 
 @click.command()

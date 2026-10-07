@@ -1,59 +1,60 @@
-**DEPRECATION WARNING**
+# asTair2
 
-asTair has been deprecated in favour of the simpler, faster and more robust [`rastair`](https://bitbucket.org/bsblabludwig/rastair). 
-This repository will remain, but new users are advised to start using `rastair` instead of asTair.
+_`asTair2` is a toolchain to process DNA modification sequencing data. It was designed primarily for handling [TET-Assisted Pyridine Borane (TAPS) sequencing](https://www.nature.com/articles/s41587-019-0041-2) output, but also contains functions that are useful for Bisulfite Sequencing (BS) data._
 
-# Original README
-
-_`asTair` is a toolchain to process DNA modification sequencing data. `asTair` was designed primarily for handling [TET-Assisted Pyridine Borane (TAPS) sequencing](https://www.nature.com/articles/s41587-019-0041-2) output, but also contains functions that are useful for Bisulfite Sequencing (BS) data._
-
-![Build status](https://img.shields.io/bitbucket/pipelines/bsblabludwig/astair.svg "Build Status")
+`asTair2` is an updated and modernised continuation of [asTair](#authors-and-history). It runs on current Python (3.12+) and current versions of its dependencies, while keeping asTair's sub-commands, options and output formats. Further development, including refactoring beyond the original code base, happens here.
 
 # Basic usage
 ## 0. Installation 
 
-Installation through `pip` is the easiest way to get `asTair`, and it works in python2 and 3:
+`asTair2` requires Python 3.12 or newer. From a clone of this repository, install it with `pip`:
 
 ```bash
-pip install astair
+pip install .
 ```
 
-You should now be able to call `astair`:
+To also enable the plotting options (`--plot`), install the optional matplotlib dependency:
 
 ```bash
-astair --help
+pip install ".[plot]"
+```
+
+You should now be able to call `astair2`:
+
+```bash
+astair2 --help
 ```
 ```text
-Usage: astair [OPTIONS] COMMAND [ARGS]...
+Usage: astair2 [OPTIONS] COMMAND [ARGS]...
 
-  asTair (tools for processing cytosine modification sequencing data)
+  asTair2 (tools for processing cytosine modification sequencing data)
 
 Options:
   --help  Show this message and exit.
 
 Commands:
-  align     Align raw reads in fastq format to a reference genome.
-  call      Call modified cytosines from a bam or cram file.
-  filter    Look for sequencing reads with more than N CpH modifications.
-  find      Output positions of Cs from fasta file per context.
-  idbias    Generate indel count per read length information (IDbias).
-  mbias     Generate modification per read length information (Mbias).
-  phred     Calculate per base (A, C, T, G) Phred scores for each strand.
-  simulate  Simulate TAPS/BS conversion on top of an existing bam/cram file.
+  align      Align raw reads in fastq format to a reference genome.
+  call       Call modified cytosines from a bam or cram file.
+  filter     Look for sequencing reads with more than N CpH modifications.
+  find       Output positions of Cs from fasta file per context.
+  idbias     Generate indel count per read length information (IDbias).
+  mbias      Generate modification per read length information (Mbias).
+  phred      Calculate per base (A, C, T, G) Phred scores for each strand.
+  simulate   Simulate TAPS/BS conversion on top of an existing bam/cram...
   summarise  Collects and outputs modification information per read.
 
   __________________________________About__________________________________
-  asTair was written by Gergana V. Velikova and Benjamin Schuster-Boeckler.
-  This code is made available under the GNU General Public License, see
-  LICENSE.txt for more details.
-                                                           Version: 3.x.x
+  asTair2 is developed by Gergana V. Velikova. It is based on asTair, which
+  was written by Gergana V. Velikova and Benjamin Schuster-Boeckler. This code
+  is made available under the GNU General Public License v3, see LICENSE.txt
+  for more details.
+
+                                                           Version: 1.x.x
 ```
 
-In general, you can use `--help` on all `astair` sub-commands to get detailed instructions on the available options.
+In general, you can use `--help` on all `astair2` sub-commands to get detailed instructions on the available options.
 
-(If for some reason `pip` is not an option, [check our FAQ](https://bitbucket.org/bsblabludwig/astair/wiki/FAQ#markdown-header-installing-astair-without-pip) for further ways to install `asTair`.)
-
-All of the examples in the main part of the current tutorial are based on the assumption that the input sequencing data are __TAPS__  pair-end sequencing reads, however, asTair analyses can be run in single-end mode (`--se`).  Also, asTair enables you to run analyses on __WGBS__ data, which requires a running installation of  [`bwa-meth`](https://github.com/brentp/bwa-meth) for the alignment step. For more information on WGBS analyses you may check the section [Analysis of WGBS data (or other unmodified cytosine to thymine conversion methods)](#markdown-header-analysis-of-wgbs-data-or-other-unmodified-cytosine-to-thymine-conversion-methods).
+All of the examples in the main part of the current tutorial are based on the assumption that the input sequencing data are __TAPS__  pair-end sequencing reads, however, asTair2 analyses can be run in single-end mode (`--se`).  Also, asTair2 enables you to run analyses on __WGBS__ data, which requires a running installation of  [`bwa-meth`](https://github.com/brentp/bwa-meth) for the alignment step. For more information on WGBS analyses you may check the section [Analysis of WGBS data (or other unmodified cytosine to thymine conversion methods)](#analysis-of-wgbs-data-or-other-unmodified-cytosine-to-thymine-conversion-methods).
 
 ## 1. Align reads
 
@@ -65,7 +66,7 @@ wget https://zenodo.org/record/2582855/files/lambda.phage_test_sample_1.fq.gz
 wget https://zenodo.org/record/2582855/files/lambda.phage_test_sample_2.fq.gz
 ```
 
-The raw reads need to be aligned. asTair contains a command to help with this. It assumes that [`bwa`](https://github.com/lh3/bwa) and [`samtools`](http://www.htslib.org/) are available on your system. (If you prefer to use a different aligner, [skip to step 2](#markdown-header-2-call-methylation).)
+The raw reads need to be aligned. asTair2 contains a command to help with this. It assumes that [`bwa`](https://github.com/lh3/bwa) and [`samtools`](http://www.htslib.org/) are available on your system. (If you prefer to use a different aligner, [skip to step 2](#2-call-methylation).)
 
 You will also need an indexed reference genome to align to, which can be given as a bgzip compressed file. For this example we are using the lambda phage genome, which you can download with
 
@@ -77,16 +78,16 @@ wget https://zenodo.org/record/2582855/files/lambda_phage.fa.fai
 Now, you are ready to align:
 ```bash
 mkdir -p output_dir
-astair align -f lambda_phage.fa -1 lambda.phage_test_sample_1.fq.gz -2 lambda.phage_test_sample_2.fq.gz -d output_dir
+astair2 align -f lambda_phage.fa -1 lambda.phage_test_sample_1.fq.gz -2 lambda.phage_test_sample_2.fq.gz -d output_dir
 ```
 If the reference FASTA file contains spaces in the header, algnment and calling will proceed using only the first word in the description unless the parameters '--add_undescores' and '--use_underscores' (aligner only) are used.
 
 ## 2. Call methylation
 
-Once your fastq files are aligned and sorted (done automatically by `astair align`), you can run `astair call` to create a list of putative modified positions:
+Once your fastq files are aligned and sorted (done automatically by `astair2 align`), you can run `astair2 call` to create a list of putative modified positions:
 
 ```bash
-astair call -i output_dir/lambda.phage_test_sample_mCtoT.cram -f lambda_phage.fa --context CpG --minimum_base_quality 13 -d output_dir/
+astair2 call -i output_dir/lambda.phage_test_sample_mCtoT.cram -f lambda_phage.fa --context CpG --minimum_base_quality 13 -d output_dir/
 ```
 You can skip positions from the 5' or 3' of the reads if they seem to show Mbias by the `--start_clip` and `--end_clip` options. NB: In case positions are poorly covered or are covered only by reads' start and end positions, the usage of `--start_clip` and `--end_clip` can can alter the modified/unmodified ratio or show the genomic position as uncovered.
 The `--no_information` option is also critical and we recommend to use 0, followed by a filtering of positions by the sum of modified and unmodified positions to be greater than 0.
@@ -127,26 +128,34 @@ The header should be mostly self-explanatory. `MOD` and `UNMOD` refer to the num
 
 1. Do quality control of the sequencing reads and do quality trimming before mapping and dispose of very short reads, using [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/), [trimgalore](https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/) or similar tools.
 2. In most cases, it will be best to remove PCR duplicates before running the modification caller, unless your reads are non-randomly fragmented (e.g. enzymatically digested).
-3. Check the fragment (insert) size distribution and decide on an overlap removal method for paired-end reads. The simplest option is the default removal of overlaps handled by `astair call`, which will randomly select one of two overlapping reads. This behaviour can be disabled by the `-sc` option, in case you are using a more sophisticated overlap-clipping tool.
-4.  For speed and convenience we recommend using the `--per_chromosome` option, if possible, in order to run multiple processes in parallel. This also reduces the memory requirement when asTair is run on a desktop machine.
+3. Check the fragment (insert) size distribution and decide on an overlap removal method for paired-end reads. The simplest option is the default removal of overlaps handled by `astair2 call`, which will randomly select one of two overlapping reads. This behaviour can be disabled by the `-sc` option, in case you are using a more sophisticated overlap-clipping tool.
+4.  For speed and convenience we recommend using the `--per_chromosome` option, if possible, in order to run multiple processes in parallel. This also reduces the memory requirement when asTair2 is run on a desktop machine.
 
 ## Analysis of WGBS data (or other unmodified cytosine to thymine conversion methods)
 
-The analysis pipeline for bisulfite sequencing data does follows the same steps as TAPS data analysis, but requires different options. We again start from fastq files. To avoid Bismark-style double-alignments, we prefer to use `bwa meth`, which can be used directly through `astair align` when you choose the `--method CtoT` option.
+The analysis pipeline for bisulfite sequencing data does follows the same steps as TAPS data analysis, but requires different options. We again start from fastq files. To avoid Bismark-style double-alignments, we prefer to use `bwa meth`, which can be used directly through `astair2 align` when you choose the `--method CtoT` option.
 
 ```bash
 mkdir -p output_dir
-astair align -f lambda_phage.fa -1 lambda.phage_test_sample_BS_1.fastq.gz -2 lambda.phage_test_sample_BS_2.fastq.gz --method CtoT -d output_dir/
+astair2 align -f lambda_phage.fa -1 lambda.phage_test_sample_BS_1.fastq.gz -2 lambda.phage_test_sample_BS_2.fastq.gz --method CtoT -d output_dir/
 ```
 
-You can now use `astair call` with `--method CtoT` for the modifcation calling:
+You can now use `astair2 call` with `--method CtoT` for the modifcation calling:
 ```bash
-astair call -i output_dir/lambda.phage_test_sample_BS_CtoT.cram -f lambda_phage.fa --method CtoT --context CpG --minimum_base_quality 13 -d output_dir/
+astair2 call -i output_dir/lambda.phage_test_sample_BS_CtoT.cram -f lambda_phage.fa --method CtoT --context CpG --minimum_base_quality 13 -d output_dir/
 ```
-# Further information
+# Running the tests
 
-- [More information on other asTair tools](https://bitbucket.org/bsblabludwig/astair/wiki/Home)
-- [asTair FAQ](https://bitbucket.org/bsblabludwig/astair/wiki/FAQ) 
+```bash
+pip install ".[plot,test]"
+pytest
+```
+
+# Authors and history
+
+`asTair2` is developed and maintained by Gergana V. Velikova.
+
+It is based on asTair, which was written by **Gergana V. Velikova** and **Benjamin Schuster-Boeckler** and released under the GNU General Public License v3. asTair2 is distributed under the same license.
 
 # License
 

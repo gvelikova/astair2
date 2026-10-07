@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-from __future__ import division
-from __future__ import print_function
-
 import re
 import os
 import sys
@@ -22,21 +19,16 @@ from os import path
 from datetime import datetime
 from collections import defaultdict
 
-if sys.version[0] == '3': 
-    from itertools import zip_longest
-elif sys.version[0] == '2':
-    from itertools import izip_longest as zip_longest
-else:
-    raise Exception("This is not the python we're looking for (version {})".format(sys.version[0]))
+from itertools import zip_longest
 
 
-from astair.vcf_reader import read_vcf
-from astair.safe_division import safe_rounder
-from astair.safe_division import non_zero_division
-from astair.bam_file_parser import bam_file_opener
-from astair.context_search import context_sequence_search
-from astair.context_search import sequence_context_set_creation
-from astair.simple_fasta_parser import fasta_splitting_by_sequence
+from astair2.vcf_reader import read_vcf
+from astair2.safe_division import safe_rounder
+from astair2.safe_division import non_zero_division
+from astair2.bam_file_parser import bam_file_opener
+from astair2.context_search import context_sequence_search
+from astair2.context_search import sequence_context_set_creation
+from astair2.simple_fasta_parser import fasta_splitting_by_sequence
 
 @click.command()
 @click.option('input_file', '--input_file', '-i', required=True, help='BAM|CRAM format file containing sequencing reads.')
@@ -377,10 +369,7 @@ def cytosine_modification_finder(input_file, known_snp, model, reference, contex
             data_line.writerow(["#CHROM", "START", "END", "MOD_LEVEL", "MOD", "UNMOD", "REF", "ALT", "SPECIFIC_CONTEXT", "CONTEXT", "SNV", "TOTAL_DEPTH"])
         else:
             logs.info("Compressing output modification calls file.")
-            if sys.version[0] == '3':
-                data_line = gzip.open(file_name + '.gz', 'wt', compresslevel=9, encoding='utf8', newline='\n')
-            else:
-                data_line = gzip.open(file_name + '.gz', 'wt', compresslevel=9)
+            data_line = gzip.open(file_name + '.gz', 'wt', compresslevel=9, encoding='utf8', newline='\n')
             data_line.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format("#CHROM", "START", "END", "MOD_LEVEL", "MOD", "UNMOD", "REF", "ALT", "SPECIFIC_CONTEXT", "CONTEXT", "SNV", "TOTAL_DEPTH"))
         true_variants, possible_mods, matched = None, None, False
         for i in range(0, len(keys)):

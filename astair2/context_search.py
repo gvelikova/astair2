@@ -1,12 +1,10 @@
-from __future__ import print_function
-
 import re
 import pdb
 import logging
 import itertools
 import ahocorasick
 
-from astair.DNA_sequences_operations import complementary
+from astair2.DNA_sequences_operations import complementary
 
 logging.basicConfig(level=logging.DEBUG)
 logs = logging.getLogger(__name__)

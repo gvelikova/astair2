@@ -1,6 +1,5 @@
 import re
 import os 
-import sys
 import pdb
 import gzip
 import numpy
@@ -15,20 +14,10 @@ logs = logging.getLogger(__name__)
 
 def gzipped_fasta_read(fasta_file, reference_absolute_name, reference_extension):
     "Reads through a GZIP compressed fasta file."
-    if reference_extension == '.gz' and sys.version[0] == '3':
-        fasta_handle = gzip.open(fasta_file, 'rt')
-    elif reference_extension == '.gz' and sys.version[0] == '2':
-        if not os.path.isfile(reference_absolute_name):
-            file_ = subprocess.Popen('gunzip {}'.format(fasta_file), shell=True)
-            exit_code = file_.wait()
-            if exit_code == 0:
-                fasta_handle = open(reference_absolute_name, 'r')
-        else:
-            fasta_handle = open(reference_absolute_name, 'r')
-    return fasta_handle
+    return gzip.open(fasta_file, 'rt')
 
 
-def output_fasta_wuth_underscores(data_line, reference_extension, fasta_file, reference_absolute_name, reference_dir):
+def output_fasta_wuth_underscores(reference_extension, fasta_file, reference_absolute_name, reference_dir):
     """Outputs a FASTA file with underscores in the names."""
     if reference_extension == '.gz':
         fasta_handle = gzipped_fasta_read(fasta_file, reference_absolute_name, reference_extension)
@@ -54,7 +43,7 @@ def output_fasta_wuth_underscores(data_line, reference_extension, fasta_file, re
 def fasta_splitting_by_sequence(fasta_file, per_chromosome, numbered, add_underscores, all_chromosomes):
     """Reads the reference line by line, which enables parsing of fasta files with multiple genomes."""
     try:
-        if (sys.version[0] == '3' and isinstance(fasta_file, str)) or (sys.version[0] == '2' and isinstance(fasta_file, basestring)):
+        if isinstance(fasta_file, str):
             reference_absolute_name = os.path.splitext(os.path.abspath(fasta_file))[0]
             reference_extension = os.path.splitext(os.path.basename(fasta_file))[1]
             reference_dir = os.path.dirname(fasta_file)
@@ -68,7 +57,7 @@ def fasta_splitting_by_sequence(fasta_file, per_chromosome, numbered, add_unders
                 except Exception:
                     logs.error('The reference FASTA file was not compressed with BGZIP or does not have an index.', exc_info=True)
             if add_underscores:
-                output_fasta_wuth_underscores(data_line, reference_extension, fasta_file, reference_absolute_name, reference_dir)
+                output_fasta_wuth_underscores(reference_extension, fasta_file, reference_absolute_name, reference_dir)
             if reference_extension != '.gz' or compressed_=='bgzip':
                 try:
                     keys, fastas, sequences, sequences_per_chrom = numpy.array([]), {}, numpy.array([]), numpy.array([])
@@ -100,9 +89,6 @@ def fasta_splitting_by_sequence(fasta_file, per_chromosome, numbered, add_unders
                                 keys.append(fasta_sequence.splitlines()[0][1:].split(' ')[0])
                             if all_chromosomes is None and per_chromosome == 'keys_only':
                                 fasta_handle.close()
-                                if reference_extension == '.gz' and sys.version[0] == '2' and  os.path.isfile(reference_absolute_name):
-                                    file_ = subprocess.Popen('gzip {}'.format(reference_absolute_name), shell=True)
-                                    exit_code = file_.wait()
                                 return keys
                             elif per_chromosome is None:
                                 sequences.append("".join(sequences_per_chrom))
@@ -114,9 +100,6 @@ def fasta_splitting_by_sequence(fasta_file, per_chromosome, numbered, add_unders
                                     sequences = "".join(sequences_per_chrom)
                                     fastas[per_chromosome] = sequences
                                     fasta_handle.close()
-                                    if reference_extension == '.gz' and sys.version[0] == '2' and  os.path.isfile(reference_absolute_name):
-                                        file_ = subprocess.Popen('gzip {}'.format(reference_absolute_name), shell=True)
-                                        exit_code = file_.wait()
                                     if all_chromosomes is None:
                                         return fastas
                                     else:
@@ -129,9 +112,6 @@ def fasta_splitting_by_sequence(fasta_file, per_chromosome, numbered, add_unders
                     for i in range(0, len(keys)):
                         fastas[keys[i]] = sequences[i]
                     fasta_handle.close()
-                    if reference_extension == '.gz' and sys.version[0] == '2' and  os.path.isfile(reference_absolute_name) and numbered == "last":
-                        file_ = subprocess.Popen('gzip {}'.format(reference_absolute_name), shell=True)
-                        exit_code = file_.wait()
                     return keys, fastas
         else:
             keys, fastas, sequences_per_chrom, sequences = [], {}, [], []

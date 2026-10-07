@@ -1,15 +1,10 @@
-
-from __future__ import division
-from __future__ import print_function
-
 import os
-import sys
 import pdb
 import pysam
 import logging
 
 
-from astair.DNA_sequences_operations import reverse_complementary
+from astair2.DNA_sequences_operations import reverse_complementary
 
 logging.basicConfig(level=logging.DEBUG)
 logs = logging.getLogger(__name__)
@@ -45,7 +40,7 @@ def read_vcf(vcf_file, chromosome, fasta, threads, start, end):
             logs.error('The input VCF file chromosome names do not match those in the fasta and bam file.', exc_info=True)
             raise
         for variant in variants_:
-            if  (sys.version[0] == '3' and variant.chrom.isnumeric() and not chromosome.isnumeric()) or ( sys.version[0] == '2' and variant.chrom.isalnum() and not variant.chrom.isalpha() and chromosome.isalnum() and not chromosome.isalpha()):
+            if variant.chrom.isnumeric() and not chromosome.isnumeric():
                 variant_chrom = 'chr'+ variant.chrom
             else:
                 variant_chrom = variant.chrom

@@ -1,7 +1,7 @@
 import sys
 import unittest
 
-from astair import DNA_sequences_operations as so
+from astair2 import DNA_sequences_operations as so
     
 class DNAOperationsTest(unittest.TestCase):
     """Tests whether the resulting DNA sequences match the expected reverse, complementary and reverse complementary output."""

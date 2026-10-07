@@ -4,8 +4,8 @@ import unittest
 import subprocess
 from os import path
 
-from astair.caller import cytosine_modification_finder
-from astair.filter import removing_mod_err
+from astair2.caller import cytosine_modification_finder
+from astair2.filter import removing_mod_err
 
 current = path.abspath(path.dirname(__file__))
 

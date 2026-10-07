@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-from __future__ import division
-
 import re
 import sys
 import csv
@@ -15,31 +13,26 @@ from os import path
 from math import ceil
 from datetime import datetime
 
-if sys.version[0] == '3':
-    from itertools import zip_longest
-elif sys.version[0] == '2':
-    from itertools import izip_longest as zip_longest
-else:
-    raise Exception("This is not the python we're looking for (version {})".format(sys.version[0]))
+from itertools import zip_longest
 
 try:
     import matplotlib as mplot
     mplot.use('Agg')
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
-    plt.style.use('seaborn-whitegrid')
+    plt.style.use('seaborn-v0_8-whitegrid')
     plt.ioff()
 except Exception:
     warnings.warn("Matplotlib was not found, visualisation output will not be supported.", ImportWarning)
 
 
 
-from astair.mbias import positions_discovery
-from astair.safe_division import safe_rounder
-from astair.safe_division import non_zero_division
-from astair.bam_file_parser import bam_file_opener
-from astair.DNA_sequences_operations import complementary
-from astair.simple_fasta_parser import fasta_splitting_by_sequence
+from astair2.mbias import positions_discovery
+from astair2.safe_division import safe_rounder
+from astair2.safe_division import non_zero_division
+from astair2.bam_file_parser import bam_file_opener
+from astair2.DNA_sequences_operations import complementary
+from astair2.simple_fasta_parser import fasta_splitting_by_sequence
 
 
 @click.command()
@@ -302,7 +295,7 @@ def IDbias_plotting(reference, input_file, directory, read_length, method, singl
                 fq.bar([0,1,2], [non_zero_division(insert_read_count_R1, total_read_count_R1, 0)*100, non_zero_division(deletion_read_count_R1, total_read_count_R1, 0)*100, non_zero_division(indel_read_count_R1, total_read_count_R1, 0)*100], color=['lightgray', 'deepskyblue', 'mediumblue'])
                 fq.set_xticklabels(['insert', 'deletion', 'both'],  fontsize=12)
                 fq.grid(color='lightgray', linestyle='solid', linewidth=1)
-            plt.savefig(directory + name + '_ID-bias_abundance_plot.pdf', figsize=(10, 20), dpi=330, bbox_inches='tight', pad_inches=0.25)
+            plt.savefig(directory + name + '_ID-bias_abundance_plot.pdf', dpi=330, bbox_inches='tight', pad_inches=0.25)
             plt.close()
               
             plt.figure(figsize=(16, 20))
@@ -334,7 +327,7 @@ def IDbias_plotting(reference, input_file, directory, read_length, method, singl
                 fq.set_xticks([0,1,2,3,4,5])
                 fq.set_xticklabels(['CpG insert', 'CHG insert', 'CHH insert', 'CpG deletion', 'CHG deletion', 'CHH deletion'],  fontsize=12, rotation=90)
                 fq.grid(color='lightgray', linestyle='solid', linewidth=1)
-            plt.savefig(directory + name + '_ID-bias_abundance_10bp_mod_site_plot.pdf', figsize=(16, 20), dpi=330, bbox_inches='tight', pad_inches=0.25)
+            plt.savefig(directory + name + '_ID-bias_abundance_10bp_mod_site_plot.pdf', dpi=330, bbox_inches='tight', pad_inches=0.25)
             plt.close()  
               
             y_axis_CpG1_insert, y_axis_CHG1_insert, y_axis_CHH1_insert, y_axis_CpG2_insert, y_axis_CHG2_insert, y_axis_CHH2_insert = list(), list(), list(), list(), list(), list()
@@ -406,7 +399,7 @@ def IDbias_plotting(reference, input_file, directory, read_length, method, singl
                 fq.xaxis.set_ticks(numpy.arange(0, read_length + 1, step=ceil(read_length / 10)))
                 fq.grid(color='lightgray', linestyle='solid', linewidth=1)
                 plt.figlegend(['CpG insert', 'CHG insert', 'CHH insert', 'CpG deletion', 'CHG deletion', 'CHH deletion'], loc='center left', bbox_to_anchor=(1, 0.5))
-            plt.savefig(directory + name + '_ID-bias_modification_colocalisation_plot.pdf', figsize=(16, 12), dpi=330, bbox_inches='tight', pad_inches=0.25)
+            plt.savefig(directory + name + '_ID-bias_modification_colocalisation_plot.pdf', dpi=330, bbox_inches='tight', pad_inches=0.25)
             plt.close()
             
             plt.figure(figsize=(16, 12))
@@ -439,7 +432,7 @@ def IDbias_plotting(reference, input_file, directory, read_length, method, singl
                 fq.xaxis.set_ticks(numpy.arange(0, read_length + 1, step=ceil(read_length / 10)))
                 fq.grid(color='lightgray', linestyle='solid', linewidth=1)
                 plt.figlegend(['insert', 'deletion'], loc='center left', bbox_to_anchor=(0.9, 0.5))
-            plt.savefig(directory + name + '_ID-bias_indel_rate_plot.pdf', figsize=(16, 12), dpi=330, bbox_inches='tight', pad_inches=0.25)
+            plt.savefig(directory + name + '_ID-bias_indel_rate_plot.pdf', dpi=330, bbox_inches='tight', pad_inches=0.25)
             plt.close()
     except Exception:
         logs.error('asTair cannot output the IDbias plot.', exc_info=True)

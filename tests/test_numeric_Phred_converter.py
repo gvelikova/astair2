@@ -1,6 +1,6 @@
 import unittest
 
-from astair import phred as phred_values
+from astair2 import phred as phred_values
 
 
 class NumericPhredOutputTest(unittest.TestCase):

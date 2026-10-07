@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-from __future__ import division
-from __future__ import print_function
-
 import re
 import os
 import sys
@@ -23,12 +20,12 @@ from datetime import datetime
 from collections import defaultdict
 
 
-from astair.vcf_reader import read_vcf
-from astair.safe_division import non_zero_division
-from astair.bam_file_parser import bam_file_opener
-from astair.context_search import context_sequence_search
-from astair.context_search import sequence_context_set_creation
-from astair.simple_fasta_parser import fasta_splitting_by_sequence
+from astair2.vcf_reader import read_vcf
+from astair2.safe_division import non_zero_division
+from astair2.bam_file_parser import bam_file_opener
+from astair2.context_search import context_sequence_search
+from astair2.context_search import sequence_context_set_creation
+from astair2.simple_fasta_parser import fasta_splitting_by_sequence
 
 
 @click.command()
@@ -93,10 +90,7 @@ def read_summariser(input_file, reference, known_snp, context, user_defined_cont
             flags_expectation_top, flags_expectation_bottom = [99,147], [83, 163]
         contexts, all_keys = sequence_context_set_creation(context, user_defined_context)
         context_total_counts, true_variants, possible_mods = defaultdict(int), [], []
-        if sys.version[0] == '3':
-            data_line = gzip.open(file_name, 'wt', compresslevel=9, encoding='utf8', newline='\n')
-        else:
-            data_line = gzip.open(file_name, 'wt', compresslevel=9)    
+        data_line = gzip.open(file_name, 'wt', compresslevel=9, encoding='utf8', newline='\n')
         data_line.write('{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n'.format("#CHROM", "START", "END", "READ_NAME", "MODIFICATION_STATUS", 'FLAG', 'CONTEXT', "SPECIFIC_CONTEXT", "BQ", "MAPQ", "STRAND", "FRAGMENT_LENGTH", "AS", "XS", "EDIT", "KNOWN_SNP", "INFO"))
         if region != (None, None, None):
             keys, start, end = [region[0]], region[1], region[2]

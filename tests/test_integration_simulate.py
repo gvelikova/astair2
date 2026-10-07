@@ -5,8 +5,8 @@ import unittest
 import subprocess
 from os import path
 
-from astair.simulator import modification_simulator
-from astair.caller import cytosine_modification_finder
+from astair2.simulator import modification_simulator
+from astair2.caller import cytosine_modification_finder
 
 
 current = path.abspath(path.dirname(__file__))

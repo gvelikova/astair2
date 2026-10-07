@@ -7,12 +7,12 @@ import sys
 import pdb
 import click
 import logging
+import shutil
 import warnings
 import subprocess
 from datetime import datetime
-from distutils.spawn import find_executable
 
-from astair.simple_fasta_parser import fasta_splitting_by_sequence
+from astair2.simple_fasta_parser import fasta_splitting_by_sequence
 
 
 @click.command()
@@ -89,14 +89,14 @@ def which_path(bwa_path, samtools_path, method):
     if bwa_path:
         use_bwa = bwa_path
     elif method == 'mCtoT':
-        use_bwa = find_executable('bwa')
+        use_bwa = shutil.which('bwa')
     elif method == 'CtoT':
-        use_bwa = find_executable('bwameth.py')
+        use_bwa = shutil.which('bwameth.py')
 
     if samtools_path:
         use_samtools = samtools_path
     else:
-        use_samtools = find_executable('samtools')
+        use_samtools = shutil.which('samtools')
 
     return use_bwa, use_samtools
 

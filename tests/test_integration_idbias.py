@@ -4,7 +4,7 @@ import unittest
 import subprocess
 from os import path
 
-from astair.idbiaser import IDbias_plotting
+from astair2.idbiaser import IDbias_plotting
 
 
 current = path.abspath(path.dirname(__file__))

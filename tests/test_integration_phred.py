@@ -4,7 +4,7 @@ import unittest
 import subprocess
 from os import path
 
-from astair.phred import Phred_scores_plotting
+from astair2.phred import Phred_scores_plotting
 
 
 current = path.abspath(path.dirname(__file__))

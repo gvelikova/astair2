@@ -4,7 +4,7 @@ import unittest
 import subprocess
 from os import path
 
-from astair.mbias import Mbias_plotting
+from astair2.mbias import Mbias_plotting
 
 
 current = path.abspath(path.dirname(__file__))

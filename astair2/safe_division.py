@@ -1,5 +1,3 @@
-from __future__ import division
-
 def non_zero_division(x, y, sign):
     """Ensures safe division of x by y, assuming that the result will be zero if y is 0."""
     if y == 0 and x!=0:

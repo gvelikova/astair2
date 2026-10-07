@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-from __future__ import division
-
 import re
 import sys
 import csv
@@ -15,27 +13,22 @@ from os import path
 from math import ceil
 from datetime import datetime
 
-if sys.version[0] == '3':
-    from itertools import zip_longest
-elif sys.version[0] == '2':
-    from itertools import izip_longest as zip_longest
-else:
-    raise Exception("This is not the python we're looking for (version {})".format(sys.version[0]))
+from itertools import zip_longest
 
 try:
     import matplotlib as mplot
     mplot.use('Agg')
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
-    plt.style.use('seaborn-whitegrid')
+    plt.style.use('seaborn-v0_8-whitegrid')
     plt.ioff()
 except Exception:
     warnings.warn("Matplotlib was not found, visualisation output will not be supported.", ImportWarning)
 
-from astair.safe_division import safe_rounder
-from astair.safe_division import non_zero_division
-from astair.bam_file_parser import bam_file_opener
-from astair.simple_fasta_parser import fasta_splitting_by_sequence
+from astair2.safe_division import safe_rounder
+from astair2.safe_division import non_zero_division
+from astair2.bam_file_parser import bam_file_opener
+from astair2.simple_fasta_parser import fasta_splitting_by_sequence
 
 
 @click.command()
@@ -292,7 +285,7 @@ def Mbias_plotting(reference, input_file, directory, read_length, method, single
                 fq.yaxis.set_ticks(numpy.arange(0, 101, step=10))
                 fq.grid(color='lightgray', linestyle='solid', linewidth=1)
                 plt.figlegend(['CpG', 'CHG', 'CHH'], loc='center left', bbox_to_anchor=(0.9, 0.5))
-            plt.savefig(directory + name + '_M-bias_plot.pdf', figsize=(16, 12), dpi=330, bbox_inches='tight', pad_inches=0.15)
+            plt.savefig(directory + name + '_M-bias_plot.pdf', dpi=330, bbox_inches='tight', pad_inches=0.15)
             plt.close()
     except Exception:
         logs.error('asTair cannot output the Mbias plot.', exc_info=True)

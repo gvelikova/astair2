@@ -1,7 +1,7 @@
 import sys
 import unittest
 
-from astair import mbias as mbias
+from astair2 import mbias as mbias
 
 class MbiasContextSearchTest(unittest.TestCase):
     """Tests whether given the read flag and the method, the correct bases for modification will be found.""" 

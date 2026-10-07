@@ -1,19 +1,18 @@
-#!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
 import click
 import logging
 
-import astair
-import astair.mbias as mbias
-import astair.phred as phred
-import astair.caller as caller
-import astair.finder as finder
-import astair.filter as filter 
-import astair.aligner as aligner
-import astair.summary as summary
-import astair.idbiaser as idbiaser
-import astair.simulator as simulator
+import astair2
+import astair2.mbias as mbias
+import astair2.phred as phred
+import astair2.caller as caller
+import astair2.finder as finder
+import astair2.filter as filter 
+import astair2.aligner as aligner
+import astair2.summary as summary
+import astair2.idbiaser as idbiaser
+import astair2.simulator as simulator
 
 
 # TODO make this config properly configurable using command line options
@@ -25,19 +24,20 @@ logs = logging.getLogger(__name__)
 @click.group()
 def cli():
     """
-    asTair (tools for processing cytosine modification sequencing data)
+    asTair2 (tools for processing cytosine modification sequencing data)
     """
     pass
 
 cli.epilog = """
 __________________________________About__________________________________
-asTair was written by Gergana V. Velikova and Benjamin Schuster-Boeckler.
-This code is made available under the GNU General Public License, see 
+asTair2 is developed by Gergana V. Velikova. It is based on asTair, which
+was written by Gergana V. Velikova and Benjamin Schuster-Boeckler.
+This code is made available under the GNU General Public License v3, see
 LICENSE.txt for more details.
 
                                                          Version: __version__
 """
-cli.epilog = cli.epilog.replace('__version__', astair.__version__)
+cli.epilog = cli.epilog.replace('__version__', astair2.__version__)
 
 
 cli.add_command(caller.call)

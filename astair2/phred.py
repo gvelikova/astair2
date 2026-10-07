@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-from __future__ import division
-
 import re
 import pdb
 import csv
@@ -14,7 +12,6 @@ import random
 import logging
 import warnings
 from os import path
-import pkg_resources
 from threading import Thread
 from datetime import datetime
 
@@ -23,22 +20,16 @@ try:
     mplot.use('Agg')
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
-    plt.style.use('seaborn-whitegrid')
+    plt.style.use('seaborn-v0_8-whitegrid')
     plt.ioff()
 except Exception:
     warnings.warn("Matplotlib was not found, visualisation output will not be supported.", ImportWarning)
 
-if sys.version[0] == '3':
-    from queue import Queue as Queue
-    from itertools import zip_longest
-elif sys.version[0] == '2':
-    from Queue import Queue as Queue
-    from itertools import izip_longest as zip_longest
-else:
-    raise Exception("This is not the python we're looking for (version {})".format(sys.version[0]))
+from queue import Queue
+from itertools import zip_longest
 
-from astair.safe_division import non_zero_division_NA
-from astair.statistics_summary import general_statistics_summary
+from astair2.safe_division import non_zero_division_NA
+from astair2.statistics_summary import general_statistics_summary
 
 
 @click.command()
@@ -281,32 +272,32 @@ def Phred_scores_plotting(fq1, fq2, calculation_mode, directory, sample_size, mi
                 fig.suptitle('Sequencing base quality', fontsize=14)
                 plt.subplots_adjust(wspace=0.4)
                 maxy = [max(maxy1, maxy2) + 1 if max(maxy1, maxy2) + 1 > 35 else 35][0]
-                box1 = fq[0].boxplot(data_fq1, labels=['A', 'C', 'G', 'T'], patch_artist=True)
+                box1 = fq[0].boxplot(data_fq1, tick_labels=['A', 'C', 'G', 'T'], patch_artist=True)
                 fq[0].set_ylabel('Phred score', fontsize=12)
                 fq[0].set_xlabel('First in pair', fontsize=12)
                 fq[0].axis([0, 5, minimum_score, maxy])
                 fq[0].yaxis.set_major_locator(ticker.MultipleLocator(5))
                 fq[0].grid(color='lightgray', linestyle='solid', linewidth=1)
-                box2 = fq[1].boxplot(data_fq2, labels=['A', 'C', 'G', 'T'], patch_artist=True)
+                box2 = fq[1].boxplot(data_fq2, tick_labels=['A', 'C', 'G', 'T'], patch_artist=True)
                 fq[1].set_xlabel('Second in pair', fontsize=12)
                 fq[1].axis([0, 5, minimum_score, maxy])
                 fq[1].yaxis.set_major_locator(ticker.MultipleLocator(5))
                 fq[1].grid(color='lightgray', linestyle='solid', linewidth=1)
                 Phred_scores_color_change([box1, box2], colors)
                 plt.vlines(-1, minimum_score, maxy, alpha=0.3, linewidth=1, linestyle='--', color='gray', clip_on=False)
-                plt.savefig(directory + name + '_phred_scores_plot.pdf', figsize=(14, 8), dpi=330, bbox_inches='tight')
+                plt.savefig(directory + name + '_phred_scores_plot.pdf', dpi=330, bbox_inches='tight')
             else:
                 fig, fq = plt.subplots(1, 1)
                 fig.suptitle('Sequencing base quality', fontsize=14)
                 maxy = [maxy1 + 1 if maxy1 + 1 > 35 else 35][0]
-                box1 = fq.boxplot(data_fq1, labels=['A', 'C', 'G', 'T'], patch_artist=True)
+                box1 = fq.boxplot(data_fq1, tick_labels=['A', 'C', 'G', 'T'], patch_artist=True)
                 fq.set_ylabel('Phred score', fontsize=12)
                 fq.set_xlabel('Single-end read', fontsize=12)
                 fq.axis([0, 5, minimum_score, maxy])
                 fq.yaxis.set_major_locator(ticker.MultipleLocator(5))
                 fq.grid(color='lightgray', linestyle='solid', linewidth=1)
                 Phred_scores_color_change([box1], colors)
-                plt.savefig(directory + name + '_phred_scores_plot.pdf', figsize=(14, 8), dpi=330, bbox_inches='tight')
+                plt.savefig(directory + name + '_phred_scores_plot.pdf', dpi=330, bbox_inches='tight')
             plt.close()
     except Exception:
         logs.error('asTair cannot output the Phred scores plot.', exc_info=True)

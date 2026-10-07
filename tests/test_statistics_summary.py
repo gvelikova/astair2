@@ -1,6 +1,6 @@
 import unittest
 
-from astair import statistics_summary
+from astair2 import statistics_summary
 
 
 class StatisticsSummaryOutputTest(unittest.TestCase):

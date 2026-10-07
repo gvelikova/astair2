@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-from __future__ import division
-from __future__ import print_function
-
 import re
 import os
 import sys
@@ -23,14 +20,14 @@ from datetime import datetime
 from collections import defaultdict
 
 
-from astair.vcf_reader import read_vcf
-from astair.cigar_search import cigar_search
-from astair.safe_division import safe_rounder
-from astair.bam_file_parser import bam_file_opener
-from astair.context_search import context_sequence_search
-from astair.cigar_search import position_correction_cigar
-from astair.context_search import sequence_context_set_creation
-from astair.simple_fasta_parser import fasta_splitting_by_sequence
+from astair2.vcf_reader import read_vcf
+from astair2.cigar_search import cigar_search
+from astair2.safe_division import safe_rounder
+from astair2.bam_file_parser import bam_file_opener
+from astair2.context_search import context_sequence_search
+from astair2.cigar_search import position_correction_cigar
+from astair2.context_search import sequence_context_set_creation
+from astair2.simple_fasta_parser import fasta_splitting_by_sequence
 
 
 @click.command()
@@ -94,7 +91,7 @@ def csv_line_skipper(csvfile, start, key, tupler, input_file):
                     tupler[tuple((str(read.decode('utf8').split()[0]), int(read.decode('utf8').split()[1]), int(read.decode('utf8').split()[2])))] = numpy.array(object=[0, float(read.decode('utf8').split()[3]) * len(
                         [i.flag for i in inbam.fetch(contig=str(read.decode('utf8').split()[0]), start=int(read.decode('utf8').split()[1]), stop=int(read.decode('utf8').split()[2])) if
                          (i.flag in [99, 147] and read.decode('utf8').split()[7] in ['C', 'T']) or (
-                         i.flag in [163, 83] and read.decode('utf8').split()[7] in ['A', 'G'])])], dtype=numpy.int8, copy=False)
+                         i.flag in [163, 83] and read.decode('utf8').split()[7] in ['A', 'G'])])], dtype=numpy.int8)
             else:
                 break
     else:
@@ -109,8 +106,7 @@ def csv_line_skipper(csvfile, start, key, tupler, input_file):
                                                          start=int(read.split()[1]),
                                                          stop=int(read.split()[2])) if
                              (i.flag in [99, 147] and read.split()[7] in ['C', 'T']) or (
-                                 i.flag in [163, 83] and read.split()[7] in ['A', 'G'])])], dtype=numpy.int8,
-                        copy=False)
+                                 i.flag in [163, 83] and read.split()[7] in ['A', 'G'])])], dtype=numpy.int8)
             else:
                 break
     time_r = datetime.now()
@@ -178,10 +174,10 @@ def random_position_modification(modification_information, modification_level, m
         modification_level = 'custom'
     if seed is not None and modified_positions is None:
         random.seed(seed)
-        random_sample = set(random.sample(modification_list_by_context, int(required)))
+        random_sample = set(random.sample(sorted(modification_list_by_context), int(required)))
     else:
         if modified_positions is None:
-            random_sample = set(random.sample(modification_list_by_context, int(required)))
+            random_sample = set(random.sample(sorted(modification_list_by_context), int(required)))
     return modification_level, random_sample
 
 
@@ -361,10 +357,7 @@ def bam_input_simulation(directory, name, modification_level, context, input_fil
             modification_level_ = modification_level
         if modified_positions:
             if modified_positions[-3:] == '.gz':
-                if sys.version[0] == '3':
-                    csvfile = gzip.open(modified_positions, 'rt+', encoding='utf8', compresslevel=9)
-                else:
-                    csvfile = gzip.open(modified_positions, 'rt+', compresslevel=9)
+                csvfile = gzip.open(modified_positions, 'rt+', encoding='utf8', compresslevel=9)
             else:
                 csvfile = open(modified_positions, 'r+')
         else:

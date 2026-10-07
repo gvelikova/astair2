@@ -4,17 +4,11 @@ import sys
 import unittest
 import subprocess
 from os import path
-from tests.version_testing import version_testing_builtin
 
-if sys.version[0] == '2':
-    from mock import patch, mock_open
-elif sys.version[0] == '3':
-    from unittest.mock import patch, mock_open
-else:
-    raise Exception("This is not the python we're looking for (version {})".format(sys.version[0])) 
+from unittest.mock import patch, mock_open
 
 
-from astair.aligner import run_alignment
+from astair2.aligner import run_alignment
 
 current = path.abspath(path.dirname(__file__))
 
@@ -38,7 +32,7 @@ class AlignFastaOutputTest(unittest.TestCase):
         
     def test_mock_taps_single_end(self):
         """Tests whether the aligner function will run with single-end TAPS reads."""
-        package = version_testing_builtin()
+        package = "builtins"
         samtools = mock_open(read_data = current + '/test_data/samtools').return_value
         bwa = mock_open(read_data = current + '/test_data/bwa').return_value
         bwa = 'bwa_'
@@ -52,7 +46,7 @@ class AlignFastaOutputTest(unittest.TestCase):
         
     def test_mock_wgbs_pair_end(self):
         """Tests whether the aligner function will run with pair-end WGBS reads."""
-        package = version_testing_builtin()
+        package = "builtins"
         samtools = mock_open(read_data = current + '/test_data/samtools').return_value
         bwa = mock_open(read_data = current + '/test_data/bwameth.py').return_value
         bwa = 'bwameth.py_'

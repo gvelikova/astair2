@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "astair2"
+dynamic = ["version"]
+description = "An updated and modernised version of asTair: a tool for the analysis of bisulfite-free and base-resolution sequencing data generated with TET Assisted Pyridine borane Sequencing (TAPS), or other modified cytosine to thymine conversion methods (mCtoT). It also has some features for bisulfite sequencing data (unmodified cytosine to thymine conversion methods, CtoT)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "GPL-3.0-only"
+license-files = ["LICENSE.txt"]
+authors = [
+    { name = "Gergana V. Velikova", email = "gergana_velikova@yahoo.com" },
+]
+keywords = ["TAPS", "cytosine", "caller", "methylation", "modification", "WGBS", "RRBS", "bisulfite", "epigenetics"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: POSIX",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "click>=8.1",
+    "pysam>=0.22",
+    "pyahocorasick>=2.1",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.9"]
+test = ["pytest>=8"]
+
+[project.scripts]
+astair2 = "astair2.cli:cli"
+
+[tool.setuptools]
+packages = ["astair2"]
+
+[tool.setuptools.dynamic]
+version = { attr = "astair2.version.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

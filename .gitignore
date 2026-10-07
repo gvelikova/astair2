@@ -4,3 +4,9 @@ test-results/*
 *.pyc
 *.sublime-*
 .python-version
+__pycache__/
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/

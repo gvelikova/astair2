@@ -1,7 +1,0 @@
-####### Testing requirements #######
-
-coverage
-nose
-
-mock # python 2.7
-future # python 2.7

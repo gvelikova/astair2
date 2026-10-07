@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-from __future__ import division
-from __future__ import print_function
-
 import re
 import os
 import sys
@@ -20,16 +17,11 @@ from os import path
 from datetime import datetime
 from collections import defaultdict
 
-if sys.version[0] == '3':
-    from itertools import zip_longest
-elif sys.version[0] == '2':
-    from itertools import izip_longest as zip_longest
-else:
-    raise Exception("This is not the python we're looking for (version {})".format(sys.version[0]))
+from itertools import zip_longest
 
-from astair.context_search import context_sequence_search
-from astair.context_search import sequence_context_set_creation
-from astair.simple_fasta_parser import fasta_splitting_by_sequence
+from astair2.context_search import context_sequence_search
+from astair2.context_search import sequence_context_set_creation
+from astair2.simple_fasta_parser import fasta_splitting_by_sequence
 
 
 @click.command()

@@ -1,7 +1,7 @@
 import unittest
 from collections import defaultdict
 
-from astair import caller as mod_caller
+from astair2 import caller as mod_caller
 
 
 class StatisticsCalculationTest(unittest.TestCase):

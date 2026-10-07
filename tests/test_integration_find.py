@@ -4,7 +4,7 @@ import unittest
 import subprocess
 from os import path
 
-from astair.finder import find_contexts
+from astair2.finder import find_contexts
 
 current = path.abspath(path.dirname(__file__))
 

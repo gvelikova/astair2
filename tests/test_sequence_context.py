@@ -2,8 +2,8 @@ import pdb
 import unittest
 from collections import defaultdict
 
-from astair import caller as mod_caller
-from astair import context_search as context
+from astair2 import caller as mod_caller
+from astair2 import context_search as context
 
 
 class SequenceSearchOutputTest(unittest.TestCase):
