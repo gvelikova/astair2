@@ -198,5 +198,101 @@ def test_failed_aligner_is_not_indexed(tools, reference, tmp_path):
             str(out),
         ],
     )
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert not any(call[:2] == ["samtools", "index"] for call in calls(log))
+    assert list(out.iterdir()) == []
+
+
+def taps_align_args(reference, out, *extra):
+    return [
+        "align",
+        "-1",
+        str(DATA / "small_real_taps_lambda_1.fq.gz"),
+        "-2",
+        str(DATA / "small_real_taps_lambda_2.fq.gz"),
+        "-f",
+        reference,
+        "-d",
+        str(out),
+        *extra,
+    ]
+
+
+def test_failed_samtools_leaves_no_output(tools, reference, tmp_path):
+    paths, log = tools
+    Path(paths["samtools"]).write_text(
+        '#!/bin/sh\necho "samtools $*" >> "{}"\nexit 1\n'.format(log)
+    )
+    (Path(reference + ".bwt")).touch()
+    out = tmp_path / "out"
+    out.mkdir()
+    result = CliRunner().invoke(
+        cli,
+        taps_align_args(reference, out, "-bp", paths["bwa"], "-sp", paths["samtools"]),
+    )
+    assert result.exit_code == 1
+    assert list(out.iterdir()) == []
+
+
+def test_missing_aligner_is_reported(tools, reference, tmp_path, caplog):
+    paths, _ = tools
+    out = tmp_path / "out"
+    out.mkdir()
+    result = CliRunner().invoke(
+        cli,
+        taps_align_args(
+            reference,
+            out,
+            "-bp",
+            str(tmp_path / "no_such_bwa"),
+            "-sp",
+            paths["samtools"],
+        ),
+    )
+    assert result.exit_code == 1
+    assert "no_such_bwa was not found" in caplog.text
+    assert "--bwa_path" in caplog.text
+
+
+def test_missing_samtools_on_path_is_reported(
+    tools, reference, tmp_path, caplog, monkeypatch
+):
+    paths, _ = tools
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    out = tmp_path / "out"
+    out.mkdir()
+    result = CliRunner().invoke(
+        cli, taps_align_args(reference, out, "-bp", paths["bwa"])
+    )
+    assert result.exit_code == 1
+    assert "samtools was not found" in caplog.text
+
+
+def test_failed_index_is_reported(tools, reference, tmp_path):
+    paths, log = tools
+    Path(paths["bwa"]).write_text(
+        '#!/bin/sh\necho "bwa $*" >> "{}"\nexit 2\n'.format(log)
+    )
+    out = tmp_path / "out"
+    out.mkdir()
+    result = CliRunner().invoke(
+        cli,
+        taps_align_args(reference, out, "-bp", paths["bwa"], "-sp", paths["samtools"]),
+    )
+    assert result.exit_code == 1
+    assert calls(log) == [["bwa", "index", reference]]
+
+
+def test_existing_output_is_not_overwritten(tools, reference, tmp_path):
+    paths, log = tools
+    out = tmp_path / "out"
+    out.mkdir()
+    existing = out / "small_real_taps_lambda_mCtoT.bam"
+    existing.write_text("previous result")
+    result = CliRunner().invoke(
+        cli,
+        taps_align_args(reference, out, "-bp", paths["bwa"], "-sp", paths["samtools"]),
+    )
+    assert result.exit_code == 1
+    assert existing.read_text() == "previous result"
+    assert not log.exists()

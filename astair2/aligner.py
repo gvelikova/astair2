@@ -4,11 +4,12 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 
 import click
 import pysam
 
-from astair2.output import output_directory
+from astair2.output import exit_if_exists, output_directory
 from astair2.simple_fasta_parser import (
     _is_plain_gzip,
     reference_names,
@@ -544,10 +545,25 @@ def align(
     )
 
 
+def find_executable(path, default_name, option):
+    """The executable given by path, or found on PATH by name; stops with an error if there is none."""
+    executable = shutil.which(path or default_name)
+    if executable is None:
+        logs.error(
+            "{} was not found. Please install it or give its location with {}.".format(
+                path or default_name, option
+            )
+        )
+        sys.exit(1)
+    return executable
+
+
 def which_path(bwa_path, samtools_path, method):
     """The aligner (bwa for mCtoT, bwameth.py for CtoT) and samtools executables."""
-    aligner = bwa_path or shutil.which("bwa" if method == "mCtoT" else "bwameth.py")
-    return aligner, samtools_path or shutil.which("samtools")
+    aligner = find_executable(
+        bwa_path, "bwa" if method == "mCtoT" else "bwameth.py", "--bwa_path"
+    )
+    return aligner, find_executable(samtools_path, "samtools", "--samtools_path")
 
 
 def _flag(enabled, option):
@@ -723,7 +739,9 @@ def check_index(
         ):
             # samtools cannot use a plain gzip reference for CRAM
             reference = gunzip_in_place(reference)
-        subprocess.run([aligner, "index", reference])
+        if subprocess.run([aligner, "index", reference]).returncode != 0:
+            logs.error("Indexing the reference {} failed.".format(reference))
+            sys.exit(1)
     return reference
 
 
@@ -796,6 +814,10 @@ def run_alignment(
     output_file = os.path.join(
         directory, output_name(fq1, paired) + "_" + method + "." + output_format.lower()
     )
+    exit_if_exists(
+        [output_file],
+        "The output files will not be overwritten. Please rename the input or the existing output files before rerunning if the input is different.",
+    )
     initially_compressed = reference.endswith(".gz")
     aligner, samtools = which_path(bwa_path, samtools_path, method)
     reference = check_index(
@@ -809,24 +831,31 @@ def run_alignment(
     temp_name = (
         os.path.join(temp_dir, "temp") if temp_dir else os.path.join(directory, "temp")
     )
-    if os.path.isfile(output_file):
-        logs.error(
-            "The output files will not be overwritten. Please rename the input or the existing output files before rerunning if the input is different."
+    try:
+        succeeded = (
+            run_pipeline(
+                alignment_commands(
+                    aligner,
+                    samtools,
+                    reference,
+                    fastq_files,
+                    method,
+                    output_format,
+                    settings,
+                    temp_name,
+                ),
+                output_file,
+            )
+            and subprocess.run([samtools, "index", output_file]).returncode == 0
         )
-    elif run_pipeline(
-        alignment_commands(
-            aligner,
-            samtools,
-            reference,
-            fastq_files,
-            method,
-            output_format,
-            settings,
-            temp_name,
-        ),
-        output_file,
-    ):
-        subprocess.run([samtools, "index", output_file])
-    if not reference.endswith(".gz") and (compress or initially_compressed):
-        bgzip_in_place(reference)
+    finally:
+        if not reference.endswith(".gz") and (compress or initially_compressed):
+            bgzip_in_place(reference)
+    if not succeeded:
+        # Do not leave an empty or truncated alignment that looks like a result.
+        for partial in (output_file, output_file + ".bai", output_file + ".crai"):
+            if os.path.isfile(partial):
+                os.remove(partial)
+        logs.error("asTair genome aligner failed; no output was written.")
+        sys.exit(1)
     logs.info("asTair genome aligner finished running.")
