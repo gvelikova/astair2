@@ -1,21 +1,22 @@
 repos:
+  # black and mypy run from the active environment, so they use the versions
+  # installed with `pip install -e ".[dev]"` (the same ones CI uses).
   - repo: local
     hooks:
       - id: black
         name: black
-        entry: dev/bin/python3 -m black astair2 tests
+        entry: black astair2 tests
         language: system
         pass_filenames: false
 
       - id: mypy
         name: mypy
-        entry: dev/bin/python3 -m mypy astair2 --ignore-missing-imports
+        entry: mypy astair2 --ignore-missing-imports
         language: system
         pass_filenames: false
 
-      - id: gitleaks-staged
-        name: gitleaks staged scan
-        entry: /tmp/gitleaks protect --staged -v --config .gitleaks.toml
-        language: system
-        pass_filenames: false
-        stages: [pre-commit]
+  # pre-commit builds gitleaks itself; it reads .gitleaks.toml from the repo root.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

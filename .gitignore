@@ -21,3 +21,11 @@ dev/
 
 # private working notes
 local_notes/
+.pre-commit-config.local.yaml
+
+# Files created by following the README tutorial
+/output_dir/
+/lambda.phage_test_sample_*.fq.gz
+/lambda_phage.fa*
+/data/lambda_phage.fa.*
+!/data/lambda_phage.fa.fai
