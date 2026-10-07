@@ -226,13 +226,17 @@ def summarise(
     )
 
 
-def read_positions(read, positions):
-    """(genomic position, read index) of the read bases aligned to the given positions."""
-    pairs = read.get_aligned_pairs(matches_only=True)
+def position_index(positions):
+    """{reference index: position} for the (chromosome, start, end) keys of one chromosome."""
+    return {position[1]: position for position in positions}
+
+
+def read_positions(read, index):
+    """(genomic position, read index) of the read bases aligned to the indexed positions."""
     return [
-        ((read.reference_name, reference_index, reference_index + 1), read_index)
-        for read_index, reference_index in pairs
-        if (read.reference_name, reference_index, reference_index + 1) in positions
+        (index[reference_index], read_index)
+        for read_index, reference_index in read.get_aligned_pairs(matches_only=True)
+        if reference_index in index
     ]
 
 
@@ -251,13 +255,32 @@ def modification_status(read, read_index, method, strand_flags):
 
 
 def read_rows(
-    read, positions, possible_mods, true_variants, known_snp, method, strand_flags
+    read,
+    positions,
+    possible_mods,
+    indexes,
+    true_variants,
+    known_snp,
+    method,
+    strand_flags,
 ):
     """The read summary rows of one read."""
+    hits = read_positions(read, indexes[0]) + (
+        read_positions(read, indexes[1]) if possible_mods else []
+    )
+    if not hits:
+        return
+    qualities = read.query_qualities
+    read_columns = (read.query_name, read.flag)
+    alignment_columns = (
+        read.mapping_quality,
+        abs(read.template_length),
+        read.get_tag("AS"),
+        read.get_tag("XS"),
+        read.get_tag("NM"),
+    )
     snp_status = "*"
-    for position, read_index in read_positions(read, positions) + (
-        read_positions(read, possible_mods) if possible_mods else []
-    ):
+    for position, read_index in hits:
         possible = known_snp is not None and position in possible_mods
         strand_base = (
             positions[position] if position in positions else possible_mods[position]
@@ -271,23 +294,19 @@ def read_rows(
             else positions[position]
         )[:2]
         yield (
-            read.reference_name,
-            position[1],
-            position[2],
-            read.query_name,
-            modification_status(read, read_index, method, strand_flags),
-            read.flag,
-            context,
-            specific_context,
-            read.query_qualities[read_index],
-            read.mapping_quality,
-            "+" if strand_base == "C" else "-",
-            abs(read.template_length),
-            read.get_tag("AS"),
-            read.get_tag("XS"),
-            read.get_tag("NM"),
-            snp_status,
-            "possible_modification" if possible else "true_modification",
+            (read.reference_name, position[1], position[2])
+            + read_columns[:1]
+            + (
+                modification_status(read, read_index, method, strand_flags),
+                read_columns[1],
+                context,
+                specific_context,
+                qualities[read_index],
+                alignment_columns[0],
+                "+" if strand_base == "C" else "-",
+            )
+            + alignment_columns[1:]
+            + (snp_status, "possible_modification" if possible else "true_modification")
         )
 
 
@@ -361,6 +380,7 @@ def read_summariser(
                 true_variants, possible_mods = read_vcf(
                     known_snp, chromosome, sequence, N_threads, start, end
                 )
+            indexes = (position_index(positions), position_index(possible_mods))
             for read in iterate_reads(input_file, N_threads, (chromosome, start, end)):
                 output.writelines(
                     tab_line(row)
@@ -368,6 +388,7 @@ def read_summariser(
                         read,
                         positions,
                         possible_mods,
+                        indexes,
                         true_variants,
                         known_snp,
                         method,

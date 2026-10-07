@@ -703,8 +703,8 @@ def modification_simulator(
         pysam.AlignmentFile(
             bam_name, write_mode, reference_filename=reference, template=template
         ) as outbam,
-        gzip.open(information_name, "wt", compresslevel=9) as read_information,
-        gzip.open(summary_name, "wt", compresslevel=9) as summary,
+        gzip.open(information_name, "wt", compresslevel=6) as read_information,
+        gzip.open(summary_name, "wt", compresslevel=6) as summary,
     ):
         for chromosome in chromosomes:
             positions, _ = find_cytosine_contexts(

@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 from collections import Counter
 from itertools import zip_longest
 from os import path
@@ -561,6 +562,7 @@ def call_chromosome(pileups, positions, true_variants, settings):
             continue
 
 
+@lru_cache(maxsize=None)
 def statistics_keys(specific_context, context, user_defined_context):
     """The summary statistics a call contributes its modified and unmodified counts to."""
     keys = [key for key in ("CpG", "CHH", "CHG") if context.startswith(key)]
@@ -569,7 +571,7 @@ def statistics_keys(specific_context, context, user_defined_context):
         keys.append("CNN")
     if user_defined_context and context.startswith(USER_CONTEXT):
         keys.append(USER_CONTEXT)
-    return keys
+    return tuple(keys)
 
 
 def add_to_statistics(statistics, record, user_defined_context):

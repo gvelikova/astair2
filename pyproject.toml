@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 license = "GPL-3.0-only"
 license-files = ["LICENSE.txt"]
 authors = [
-    { name = "Gergana V. Velikova", email = "gergana_velikova@yahoo.com" },
+    { name = "Gergana V. Velikova" },
 ]
 keywords = ["TAPS", "cytosine", "caller", "methylation", "modification", "WGBS", "RRBS", "bisulfite", "epigenetics"]
 classifiers = [

@@ -37,7 +37,7 @@ def open_text(file_name, compress=False):
     """A text handle for writing, gzip-compressed if requested."""
     if compress:
         return gzip.open(
-            file_name, "wt", compresslevel=9, encoding="utf8", newline="\n"
+            file_name, "wt", compresslevel=6, encoding="utf8", newline="\n"
         )
     return open(file_name, "w", newline="\n")
 

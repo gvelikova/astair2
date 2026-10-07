@@ -6,9 +6,11 @@ the marker is strict, pytest reports it as XPASS(strict) so the marker gets
 removed together with the fix.
 """
 
+import csv
 import gzip
 from pathlib import Path
 
+import pysam
 import pytest
 from click.testing import CliRunner
 
@@ -31,8 +33,7 @@ def data_rows(path):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="flags_expectation calls list.extend with two arguments; "
-    "clean_pileup swallows the TypeError and drops every position",
+    reason="with --ignore_orphans False every position is dropped (inherited TypeError in the flag expectations)",
 )
 def test_call_keeps_positions_when_orphans_are_included(tmp_path):
     result = run(
@@ -44,7 +45,7 @@ def test_call_keeps_positions_when_orphans_are_included(tmp_path):
 
 @pytest.mark.xfail(
     strict=True,
-    reason="modification_calls_writer is called with an unsupported header= argument",
+    reason="writing the uncovered positions always fails",
 )
 def test_call_zero_coverage_outputs_uncovered_positions(tmp_path):
     result = run("call", "-i", TAPS, "-f", LAMBDA, "-co", "CpG", "-zc", "-d", tmp_path)
@@ -118,3 +119,106 @@ def test_simulate_region(tmp_path):
 def test_align_short_options_are_unique():
     options = [opt for param in cli.commands["align"].params for opt in param.opts]
     assert len(options) == len(set(options))
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="positions where most reads differ from the reference and no opposite-strand "
+    "read shows the reference base or A are dropped unless --no_information is 0",
+)
+def test_call_output_does_not_depend_on_no_information_symbol(tmp_path):
+    reference = tmp_path / "ref.fa"
+    sequence = "ACGTACGATTGCAAGCTTCGATCGGATCCGTAGCTAGCTAACGTTGCATGCAAGCTGACGTCAGTCAGCTAGCATGACGTAGCTAGCATCGATCGTACG"
+    reference.write_text(">chrT\n" + sequence + "\n")
+    pysam.faidx(str(reference))
+    bam = tmp_path / "reads.bam"
+    header = {
+        "HD": {"VN": "1.6", "SO": "coordinate"},
+        "SQ": [{"SN": "chrT", "LN": len(sequence)}],
+    }
+    with pysam.AlignmentFile(str(bam), "wb", header=header) as output:
+        for number in range(5):
+            # fully modified top-strand reads (every C read as T), no bottom-strand reads
+            read = pysam.AlignedSegment()
+            read.query_name, read.flag, read.reference_id, read.reference_start = (
+                "r%d" % number,
+                99,
+                0,
+                0,
+            )
+            read.query_sequence = sequence[:60].replace("C", "T")
+            read.query_qualities = pysam.qualitystring_to_array("F" * 60)
+            read.cigarstring, read.mapping_quality = "60M", 60
+            read.next_reference_id, read.next_reference_start, read.template_length = (
+                0,
+                40,
+                100,
+            )
+            output.write(read)
+    pysam.index(str(bam))
+    rows = {}
+    for symbol in ("0", "*"):
+        out = tmp_path / ("ni_zero" if symbol == "0" else "ni_star")
+        out.mkdir()
+        assert (
+            run(
+                "call",
+                "-i",
+                bam,
+                "-f",
+                reference,
+                "-co",
+                "CpG",
+                "-ni",
+                symbol,
+                "-d",
+                out,
+            ).exit_code
+            == 0
+        )
+        rows[symbol] = [
+            row.split("\t")[:3] for row in data_rows(out / "reads_mCtoT_CpG.mods")
+        ]
+    assert rows["0"], "the fully modified CpGs should be called"
+    assert rows["*"] == rows["0"]
+
+
+@pytest.mark.xfail(
+    strict=True, reason="the UNMOD_COUNT and MOD_COUNT columns are multiplied by 100"
+)
+def test_mbias_counts_are_read_counts(tmp_path):
+    assert (
+        run("mbias", "-f", LAMBDA, "-i", TAPS, "-l", "80", "-d", tmp_path).exit_code
+        == 0
+    )
+    with pysam.AlignmentFile(TAPS) as bam:
+        reads = sum(1 for _ in bam.fetch(until_eof=True))
+    with open(tmp_path / "small_real_taps_lambda_mCtoT_Mbias.txt") as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+    counts = [
+        float(row[column]) for row in rows for column in row if "_COUNT_" in column
+    ]
+    assert max(counts) <= reads
+
+
+@pytest.mark.xfail(
+    strict=True, reason="--per_chromosome only changes the output file name"
+)
+def test_find_per_chromosome_only_reports_that_chromosome(tmp_path):
+    reference = tmp_path / "two.fa"
+    reference.write_text(">chrA\nACGTTCAGCCGATCCA\n>chrB\nTTCGACCAGGCTCCGA\n")
+    assert run("find", "-f", reference, "-chr", "chrB", "-d", tmp_path).exit_code == 0
+    chromosomes = {
+        row.split("\t")[0] for row in data_rows(tmp_path / "two_chrB_all.bed")
+    }
+    assert chromosomes == {"chrB"}
+
+
+def test_phred_quality_lines_starting_with_at_sign(tmp_path):
+    """Fixed: quality lines starting with '@' (Phred 31) used to lose their first score."""
+    fastq = tmp_path / "reads_1.fq.gz"
+    fastq.write_bytes(gzip.compress(b"@read1\nTACG\n+\n@###\n@read2\nTACG\n+\n@###\n"))
+    assert run("phred", "-1", fastq, "--se", "-d", tmp_path).exit_code == 0
+    summary = (tmp_path / "reads_1_total_Phred.txt").read_text()
+    assert "thymines: 31.0" in summary.splitlines()[2]
+    assert "adenines: 2.0" in summary.splitlines()[2]

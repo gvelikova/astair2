@@ -5,9 +5,16 @@ test-results/*
 *.sublime-*
 .python-version
 __pycache__/
+**/__pycache__/
+*.pyo
+*.pyd
 *.egg-info/
 build/
+**/build/
 dist/
+**/dist/
+site/
+pip-wheel-metadata/
 .venv/
 .pytest_cache/
 dev/
