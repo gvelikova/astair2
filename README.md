@@ -151,6 +151,24 @@ pip install ".[plot,test]"
 pytest
 ```
 
+# Citation
+
+If you use asTair2 in your work, please cite:
+
+> Velikova, G. V. (2020). *Development and application of computational methods to study DNA modifications* [DPhil thesis]. University of Oxford. https://doi.org/10.5287/ora-x5zmqda6d
+
+```bibtex
+@phdthesis{velikova2020astair,
+  author = {Velikova, Gergana V.},
+  title  = {Development and application of computational methods to study {DNA} modifications},
+  school = {University of Oxford},
+  year   = {2020},
+  type   = {{DPhil} thesis},
+  doi    = {10.5287/ora-x5zmqda6d},
+  url    = {https://ora.ox.ac.uk/objects/uuid:9c7e449a-f0c1-439d-82c6-1b64e52d2dd6}
+}
+```
+
 # Authors and history
 
 `asTair2` is developed and maintained by Gergana V. Velikova.
