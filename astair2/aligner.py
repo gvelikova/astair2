@@ -331,7 +331,7 @@ logs = logging.getLogger(__name__)
 @click.option(
     "minimum_score",
     "--minimum_score",
-    "-ms",
+    "-T",
     default=30,
     type=int,
     required=False,

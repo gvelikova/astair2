@@ -1,4 +1,3 @@
-import sys
 import unittest
 
 from astair2 import phred as phred_values

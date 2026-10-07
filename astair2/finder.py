@@ -95,11 +95,12 @@ def find_contexts(
         "Bed file with this name exists. Please rename before rerunning.",
     )
     keys = context_keys(context, user_defined_context)
-    # TODO known bug: per_chromosome only changes the file name, all sequences are written.
-    sequences = read_reference(reference)
+    sequences = read_reference(
+        reference, None if per_chromosome is None else [per_chromosome]
+    )
     with open_text(file_name, compress) as output:
         header = ["#CHROM", "START", "END", "STRAND", "SPECIFIC_CONTEXT", "CONTEXT"]
-        output.write(tab_line(header[:5] if compress else header))
+        output.write(tab_line(header))
         for name, sequence in sequences.items():
             logs.info(
                 "Looking for cytosine positions on {} chromosome (sequence).".format(
@@ -111,6 +112,5 @@ def find_contexts(
             )
             for position in sorted(positions):
                 row = position + positions[position][:2]
-                # TODO known bug: the compressed output loses the CONTEXT column.
-                output.write(tab_line(row[:5] if compress else row))
+                output.write(tab_line(row))
     logs.info("asTair cytosine contexts positions finder finished running.")

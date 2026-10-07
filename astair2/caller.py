@@ -174,12 +174,11 @@ class PositionDropped(Exception):
 )
 @click.option(
     "skip_clip_overlap",
-    "--skip_clip_overlap",
-    "-sc",
+    "--skip_clip_overlap/--keep_clip_overlap",
+    "-sc/-kc",
     required=False,
     default=True,
-    is_flag=True,
-    help="Random removal of overlapping bases between pair-end reads. Skipping is recommended for pair-end libraries, unless the overlaps are removed prior to calling. (Default True)",
+    help="Random removal of overlapping bases between pair-end reads (--skip_clip_overlap, -sc). Skipping is recommended for pair-end libraries, unless the overlaps are removed prior to calling; use --keep_clip_overlap (-kc) in that case. (Default --skip_clip_overlap)",
 )
 @click.option(
     "single_end",
@@ -391,9 +390,15 @@ def call(
     )
 
 
-def strand_flags(reference, single_end, library):
+def strand_flags(reference, single_end, library, ignore_orphans=True):
     """(flags of reads informative for the modification, flags of reads from the opposite strand)."""
-    top, bottom = ((0,), (16,)) if single_end else ((99, 147), (83, 163))
+    if single_end:
+        top, bottom = (0,), (16,)
+    elif ignore_orphans:
+        top, bottom = (99, 147), (83, 163)
+    else:
+        # reads whose mate did not align as a proper pair
+        top, bottom = (99, 147, 97, 145), (83, 163, 81, 161)
     informative, opposite = (top, bottom) if reference == "C" else (bottom, top)
     return (
         (informative, opposite) if library == "directional" else (opposite, informative)
@@ -466,9 +471,9 @@ def counted_read(flag, query_position, read_length, start_clip, end_clip):
     """Whether a read base lies outside the clipped read ends."""
     if start_clip == 0 and end_clip == 0:
         return True
-    if flag in (83, 99):
+    if flag in (83, 99, 81, 97):
         return start_clip < query_position < read_length - end_clip
-    if flag in (147, 163):
+    if flag in (147, 163, 145, 161):
         return end_clip < query_position < read_length - start_clip
     return False
 
@@ -495,11 +500,11 @@ def pileup_read_counts(column, add_indels, start_clip, end_clip):
 def call_position(column, position, information, known_variant, settings):
     """The .mods record of one covered cytosine position."""
     specific_context, context, reference = information
-    if not settings["single_end"] and not settings["ignore_orphans"]:
-        # TODO known bug: including orphan reads failed with a TypeError that dropped every position.
-        raise PositionDropped
     informative_flags, opposite_flags = strand_flags(
-        reference, settings["single_end"], settings["library"]
+        reference,
+        settings["single_end"],
+        settings["library"],
+        settings["ignore_orphans"],
     )
     read_counts = pileup_read_counts(
         column, settings["add_indels"], settings["start_clip"], settings["end_clip"]
@@ -560,6 +565,38 @@ def call_chromosome(pileups, positions, true_variants, settings):
         except TypeError:
             # TODO known bug: reads with deletions at a position used with read end clipping raise a TypeError.
             continue
+
+
+def with_uncovered_positions(records, positions, no_information):
+    """Yields (record, covered) in coordinate order, adding a record for every position without one."""
+    candidates = iter(sorted(positions))
+    candidate = next(candidates, None)
+
+    def uncovered(position):
+        specific_context, context, reference = positions[position]
+        return (
+            *position,
+            no_information,
+            0,
+            0,
+            reference,
+            STRAND_BASES[reference][1],
+            specific_context,
+            context,
+            "*",
+            0,
+        ), False
+
+    for record in records:
+        while candidate is not None and candidate < record[:3]:
+            yield uncovered(candidate)
+            candidate = next(candidates, None)
+        if candidate == record[:3]:
+            candidate = next(candidates, None)
+        yield record, True
+    while candidate is not None:
+        yield uncovered(candidate)
+        candidate = next(candidates, None)
 
 
 @lru_cache(maxsize=None)
@@ -729,14 +766,17 @@ def cytosine_modification_finder(
                 min_mapping_quality=minimum_mapping_quality,
                 adjust_capq_threshold=adjust_acapq_threshold,
             )
-            for record in call_chromosome(pileups, positions, true_variants, settings):
-                mods.write(tab_line(record))
-                add_to_statistics(statistics, record, user_defined_context)
+            records = call_chromosome(pileups, positions, true_variants, settings)
             if zero_coverage:
-                # TODO known bug: writing the uncovered positions always failed.
-                raise TypeError(
-                    "modification_calls_writer() got an unexpected keyword argument 'header'"
+                rows = with_uncovered_positions(
+                    records, positions, settings["no_information"]
                 )
+            else:
+                rows = ((record, True) for record in records)
+            for record, covered in rows:
+                mods.write(tab_line(record))
+                if covered:
+                    add_to_statistics(statistics, record, user_defined_context)
     with open(base_name + ".stats", "w") as stats:
         stats.writelines(
             tab_line(row)

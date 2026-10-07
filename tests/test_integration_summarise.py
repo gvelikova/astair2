@@ -1,6 +1,3 @@
-import pdb
-import csv
-import sys
 import gzip
 import unittest
 import subprocess

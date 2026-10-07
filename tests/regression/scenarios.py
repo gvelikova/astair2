@@ -83,6 +83,25 @@ SCENARIOS = {
     "call_reverse_library": [
         ["call", "-i", TAPS_REV, "-f", LAMBDA, "-li", "reverse", "-co", "CpG", *OUT]
     ],
+    "call_zero_coverage_orphans": [
+        ["call", "-i", TAPS, "-f", LAMBDA, "-co", "CHG", "-zc", "-io", "False", *OUT]
+    ],
+    "call_keep_overlaps_gz": [
+        [
+            "call",
+            "-i",
+            WGBS,
+            "-f",
+            LAMBDA,
+            "-m",
+            "CtoT",
+            "-co",
+            "CpG",
+            "-kc",
+            "--gz",
+            *OUT,
+        ]
+    ],
     "call_filters": [
         [
             "call",

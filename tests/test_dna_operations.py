@@ -1,4 +1,3 @@
-import sys
 import unittest
 
 from astair2 import DNA_sequences_operations as so

@@ -206,12 +206,11 @@ TOP_FLAGS, BOTTOM_FLAGS = (99, 147), (83, 163)
 )
 @click.option(
     "skip_clip_overlap",
-    "--skip_clip_overlap",
-    "-sc",
+    "--skip_clip_overlap/--keep_clip_overlap",
+    "-sc/-kc",
     required=False,
     default=True,
-    is_flag=True,
-    help="Random removal of overlapping bases between pair-end reads. Skipping is recommended for pair-end libraries, unless the overlaps are removed prior to calling. (Default True)",
+    help="Random removal of overlapping bases between pair-end reads (--skip_clip_overlap, -sc). Skipping is recommended for pair-end libraries, unless the overlaps are removed prior to calling; use --keep_clip_overlap (-kc) in that case. (Default --skip_clip_overlap)",
 )
 @click.option(
     "single_end",
@@ -695,7 +694,9 @@ def modification_simulator(
         reverse_modification,
         extension,
     )
-    sequences = read_reference(reference)
+    sequences = read_reference(
+        reference, None if per_chromosome is None else [per_chromosome]
+    )
     keys = context_keys(context, user_defined_context)
     chromosomes = [region[0]] if region else list(sequences)
     with (
